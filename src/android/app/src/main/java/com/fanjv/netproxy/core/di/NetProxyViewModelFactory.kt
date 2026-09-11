@@ -14,6 +14,7 @@ import com.fanjv.netproxy.feature.catalog.presentation.subscriptions.Subscriptio
 import com.fanjv.netproxy.feature.catalog.presentation.subscriptions.SubscriptionsViewModel
 import com.fanjv.netproxy.feature.dashboard.presentation.CatalogDashboardViewModel
 import com.fanjv.netproxy.feature.kernel.presentation.SingBoxConfigViewModel
+import com.fanjv.netproxy.feature.kernel.presentation.DnsSettingsViewModel
 import com.fanjv.netproxy.feature.logs.presentation.LogsViewModel
 import com.fanjv.netproxy.feature.settings.presentation.SettingsViewModel
 import com.fanjv.netproxy.feature.theme.presentation.ThemeViewModel
@@ -60,6 +61,10 @@ internal class NetProxyViewModelFactory(
             SingBoxConfigViewModel::class.java -> SingBoxConfigViewModel(
                 container.configRepository,
                 container.serviceRepository
+            )
+
+            DnsSettingsViewModel::class.java -> DnsSettingsViewModel(
+                container.configRepository
             )
 
             LogsViewModel::class.java -> LogsViewModel(container.logRepository)

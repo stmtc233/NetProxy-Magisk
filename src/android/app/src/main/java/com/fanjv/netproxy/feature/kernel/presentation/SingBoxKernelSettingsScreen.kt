@@ -181,7 +181,12 @@ internal fun SingBoxKernelSettingsScreen(
                             keyPrefix = "singbox_common",
                             title = { stringResource(R.string.singbox_common_configs) },
                             documents = commonDocuments,
-                            onOpen = { navigator.push(Route.JsonEdit(it.id)) },
+                            onOpen = {
+                                navigator.push(
+                                    if (it.section == "dns") Route.DnsSettings
+                                    else Route.JsonEdit(it.id)
+                                )
+                            },
                         )
                     }
                     if (advancedDocuments.isNotEmpty()) {
