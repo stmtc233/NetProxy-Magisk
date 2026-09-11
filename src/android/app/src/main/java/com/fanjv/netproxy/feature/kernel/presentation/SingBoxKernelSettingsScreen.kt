@@ -202,7 +202,13 @@ internal fun SingBoxKernelSettingsScreen(
                             keyPrefix = "singbox_local_rules",
                             title = { stringResource(R.string.singbox_rule_files) },
                             documents = localRuleDocuments,
-                            onOpen = { navigator.push(Route.JsonEdit(it.id)) },
+                            onOpen = {
+                                navigator.push(
+                                    Route.LocalRules(
+                                        it.filename.substringBeforeLast('.')
+                                    )
+                                )
+                            },
                         )
                     }
                     if (runtimeDocuments.isNotEmpty()) {

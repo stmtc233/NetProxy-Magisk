@@ -57,6 +57,8 @@ DNS 页面中配置的服务器标签也会作为订阅“节点域名 DNS”的
 
 保存会检查读取时的版本。同一分区已被其他客户端修改时，会提示重新加载，防止覆盖他人的修改；其他分区更新不会阻止当前分区保存。
 
+`rules/local/proxy.json`、`direct.json` 与 `block.json` 在管理器中使用同一可视化页面，常用匹配字段可直接添加和删除。每个标签仍提供高级 JSON 入口，表单未识别的字段会保留；`rules/remote/` 下的下载规则不会由此页面改写。
+
 ### 更换整份配置
 
 先备份 `config.json`，再通过“完整配置”或 `config apply singbox/config.json` 提交候选文件。校验时会一起加载 Catalog 与 eBPF 运行时，失败不替换当前配置。

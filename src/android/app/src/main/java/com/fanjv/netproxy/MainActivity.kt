@@ -47,6 +47,7 @@ import com.fanjv.netproxy.feature.dashboard.presentation.CatalogDashboardScreen
 import com.fanjv.netproxy.feature.kernel.presentation.SingBoxJsonEditScreen
 import com.fanjv.netproxy.feature.kernel.presentation.SingBoxKernelSettingsScreen
 import com.fanjv.netproxy.feature.kernel.presentation.DnsSettingsScreen
+import com.fanjv.netproxy.feature.kernel.presentation.LocalRulesScreen
 import com.fanjv.netproxy.feature.logs.presentation.LogsScreen
 import com.fanjv.netproxy.feature.settings.presentation.ProxySettingsScreen
 import com.fanjv.netproxy.feature.settings.presentation.SettingsScreen
@@ -62,6 +63,7 @@ import com.fanjv.netproxy.navigation.Route.JsonEdit
 import com.fanjv.netproxy.navigation.Route.KernelSettings
 import com.fanjv.netproxy.navigation.Route.DnsSettings
 import com.fanjv.netproxy.navigation.Route.Logs
+import com.fanjv.netproxy.navigation.Route.LocalRules
 import com.fanjv.netproxy.navigation.Route.Main
 import com.fanjv.netproxy.navigation.Route.NodeEdit
 import com.fanjv.netproxy.navigation.Route.ProxySettings
@@ -185,6 +187,12 @@ internal fun NetProxyApp(themeViewModel: ThemeViewModel) {
                     }
                     entry<DnsSettings> {
                         DnsSettingsScreen(
+                            onBack = { navigator.pop() }
+                        )
+                    }
+                    entry<LocalRules> {
+                        LocalRulesScreen(
+                            initialKind = it.initialKind,
                             onBack = { navigator.pop() }
                         )
                     }
