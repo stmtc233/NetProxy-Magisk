@@ -919,6 +919,20 @@ internal fun SubscriptionEditorScreen(
                 }
                 item {
                     Card(modifier = Modifier.fillMaxWidth()) {
+                        val dnsValues = (
+                            listOf("") + state.dnsServerTags +
+                                draft.serverDns.takeIf(String::isNotBlank).orEmpty()
+                            ).distinct()
+                        OverlayDropdownPreference(
+                            title = stringResource(R.string.subscription_editor_server_dns),
+                            items = listOf(
+                                stringResource(R.string.subscription_editor_server_dns_default)
+                            ) + dnsValues.drop(1),
+                            selectedIndex = dnsValues.indexOf(draft.serverDns).coerceAtLeast(0),
+                            onSelectedIndexChange = { index ->
+                                viewModel.update { it.copy(serverDns = dnsValues[index]) }
+                            }
+                        )
                         SwitchPreference(
                             title = stringResource(R.string.subscription_editor_allow_insecure),
                             summary = stringResource(R.string.subscription_editor_allow_insecure_summary),

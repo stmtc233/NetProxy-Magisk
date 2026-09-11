@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
 
 	"encoding/json/jsontext"
 	json "encoding/json/v2"
@@ -52,6 +53,7 @@ type GroupOptions struct {
 	UpdateViaProxy string
 	FrontProxy     string
 	LandingProxy   string
+	ServerDNS      string
 	Include        string
 	Exclude        string
 	AllowInsecure  bool
@@ -166,6 +168,9 @@ func validateGroupOptions(options GroupOptions) error {
 	default:
 		return fmt.Errorf("未知 Catalog 分组类型: %s", options.Type)
 	}
+	if strings.IndexFunc(options.ServerDNS, unicode.IsControl) >= 0 {
+		return errors.New("节点域名 DNS 标签不能包含控制字符")
+	}
 	return nil
 }
 
@@ -193,6 +198,7 @@ func buildGroupMetadata(options GroupOptions) (Metadata, error) {
 	metadata.UpdateViaProxy = options.UpdateViaProxy
 	metadata.FrontProxy = options.FrontProxy
 	metadata.LandingProxy = options.LandingProxy
+	metadata.ServerDNS = strings.TrimSpace(options.ServerDNS)
 	metadata.Include = options.Include
 	metadata.Exclude = options.Exclude
 	metadata.AllowInsecure = options.AllowInsecure

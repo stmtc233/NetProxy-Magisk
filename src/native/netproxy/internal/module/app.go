@@ -680,6 +680,7 @@ type SubscriptionOptions struct {
 	UpdateViaProxy string
 	FrontProxy     string
 	LandingProxy   string
+	ServerDNS      string
 	Include        string
 	Exclude        string
 	AllowInsecure  bool
@@ -706,7 +707,7 @@ func AddSubscription(ctx context.Context, options SubscriptionOptions) (result s
 	if err != nil {
 		return subscription.Result{}, err
 	}
-	if err := catalog.InitializeGroup(ctx, catalog.GroupOptions{Root: options.CatalogRoot, GroupID: groupID, Name: options.Name, Type: "subscription", URL: options.URL, UserAgent: options.UserAgent, HWID: options.HWID, CustomHeaders: options.Headers, AutoUpdate: options.AutoUpdate, UpdateInterval: options.UpdateInterval, IntervalSource: options.IntervalSource, UpdateViaProxy: options.UpdateViaProxy, FrontProxy: options.FrontProxy, LandingProxy: options.LandingProxy, Include: options.Include, Exclude: options.Exclude, AllowInsecure: options.AllowInsecure, Timeout: options.Timeout}); err != nil {
+	if err := catalog.InitializeGroup(ctx, catalog.GroupOptions{Root: options.CatalogRoot, GroupID: groupID, Name: options.Name, Type: "subscription", URL: options.URL, UserAgent: options.UserAgent, HWID: options.HWID, CustomHeaders: options.Headers, AutoUpdate: options.AutoUpdate, UpdateInterval: options.UpdateInterval, IntervalSource: options.IntervalSource, UpdateViaProxy: options.UpdateViaProxy, FrontProxy: options.FrontProxy, LandingProxy: options.LandingProxy, ServerDNS: options.ServerDNS, Include: options.Include, Exclude: options.Exclude, AllowInsecure: options.AllowInsecure, Timeout: options.Timeout}); err != nil {
 		return subscription.Result{}, err
 	}
 	workerOptions := workerOptions(options.Options)
