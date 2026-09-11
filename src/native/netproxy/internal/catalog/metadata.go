@@ -36,6 +36,7 @@ type Metadata struct {
 	UpdateInterval     int64                 `json:"update_interval"`
 	IntervalSource     string                `json:"interval_source"`
 	UpdateViaProxy     string                `json:"update_via_proxy"`
+	ServerDNS          string                `json:"server_dns"`
 	Include            string                `json:"include"`
 	Exclude            string                `json:"exclude"`
 	AllowInsecure      bool                  `json:"allow_insecure"`

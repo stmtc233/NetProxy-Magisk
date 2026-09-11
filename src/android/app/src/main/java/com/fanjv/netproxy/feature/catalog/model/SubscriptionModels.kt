@@ -16,6 +16,7 @@ internal data class SubscriptionEditorState(
     @SerialName("update_interval") val updateInterval: Long = 86400,
     @SerialName("interval_source") val intervalSource: String = "default",
     @SerialName("update_via_proxy") val updateViaProxy: String = "auto",
+    @SerialName("server_dns") val serverDns: String = "",
     val include: String = "",
     val exclude: String = "",
     @SerialName("allow_insecure") val allowInsecure: Boolean = false,
@@ -31,6 +32,7 @@ internal data class SubscriptionDraft(
     val autoUpdate: Boolean = true,
     val updateIntervalSeconds: Long = 86400,
     val updateViaProxy: String = "auto",
+    val serverDns: String = "",
     val include: String = "",
     val exclude: String = "",
     val allowInsecure: Boolean = false,
@@ -46,4 +48,3 @@ internal data class SubscriptionHistoryEntry(
     @SerialName("node_count") val nodeCount: Int? = null,
     val revision: Long? = null
 )
-

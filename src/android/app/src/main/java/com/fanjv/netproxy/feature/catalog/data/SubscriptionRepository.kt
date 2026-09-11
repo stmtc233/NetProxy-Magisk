@@ -61,6 +61,9 @@ internal class SubscriptionRepository(
             if (original.updateViaProxy != updated.updateViaProxy) {
                 args += listOf("--via-proxy", updated.updateViaProxy)
             }
+            if (original.serverDns != updated.serverDns) {
+                args += listOf("--server-dns", updated.serverDns)
+            }
             if (original.include != updated.include) args += listOf("--include", updated.include)
             if (original.exclude != updated.exclude) args += listOf("--exclude", updated.exclude)
             if (original.allowInsecure != updated.allowInsecure) {
@@ -113,6 +116,7 @@ internal class SubscriptionRepository(
         if (headersFile != null) args += listOf("--headers-file", headersFile.absolutePath)
         args += listOf("--interval", draft.updateIntervalSeconds.toString())
         args += listOf("--via-proxy", draft.updateViaProxy)
+        if (draft.serverDns.isNotBlank()) args += listOf("--server-dns", draft.serverDns)
         if (draft.include.isNotBlank()) args += listOf("--include", draft.include)
         if (draft.exclude.isNotBlank()) args += listOf("--exclude", draft.exclude)
         if (draft.allowInsecure) {

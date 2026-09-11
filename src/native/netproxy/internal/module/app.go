@@ -674,6 +674,7 @@ type SubscriptionOptions struct {
 	UpdateInterval int64
 	IntervalSource string
 	UpdateViaProxy string
+	ServerDNS      string
 	Include        string
 	Exclude        string
 	AllowInsecure  bool
@@ -695,7 +696,7 @@ func AddSubscription(ctx context.Context, options SubscriptionOptions) (result s
 	if err != nil {
 		return subscription.Result{}, err
 	}
-	if err := catalog.InitializeGroup(ctx, catalog.GroupOptions{Root: options.CatalogRoot, GroupID: groupID, Name: options.Name, Type: "subscription", URL: options.URL, UserAgent: options.UserAgent, HWID: options.HWID, CustomHeaders: options.Headers, AutoUpdate: options.AutoUpdate, UpdateInterval: options.UpdateInterval, IntervalSource: options.IntervalSource, UpdateViaProxy: options.UpdateViaProxy, Include: options.Include, Exclude: options.Exclude, AllowInsecure: options.AllowInsecure, Timeout: options.Timeout}); err != nil {
+	if err := catalog.InitializeGroup(ctx, catalog.GroupOptions{Root: options.CatalogRoot, GroupID: groupID, Name: options.Name, Type: "subscription", URL: options.URL, UserAgent: options.UserAgent, HWID: options.HWID, CustomHeaders: options.Headers, AutoUpdate: options.AutoUpdate, UpdateInterval: options.UpdateInterval, IntervalSource: options.IntervalSource, UpdateViaProxy: options.UpdateViaProxy, ServerDNS: options.ServerDNS, Include: options.Include, Exclude: options.Exclude, AllowInsecure: options.AllowInsecure, Timeout: options.Timeout}); err != nil {
 		return subscription.Result{}, err
 	}
 	workerOptions := workerOptions(options.Options)
@@ -745,7 +746,7 @@ func EditSubscription(ctx context.Context, options Options, query string, edit s
 	if err != nil {
 		return edited, err
 	}
-	if !edited.RequiresUpdate && !edited.NameChanged {
+	if !edited.RequiresUpdate && !edited.NameChanged && !edited.RuntimeChanged {
 		if !service.ProcessRunning(options.SingBoxPath) {
 			if err := subscription.RecordRuntimeSyncNotRunning(ctx, options.CatalogRoot, groupID, edit.Now); err != nil {
 				return edited, err

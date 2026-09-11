@@ -334,6 +334,9 @@ func BuildRuntime(ctx context.Context, options RuntimeOptions) (RuntimeResult, e
 		selected = ""
 	}
 
+	if err := prepareRuntimeProviders(ctx, filepath.Dir(options.ProvidersOutput), groups); err != nil {
+		return RuntimeResult{}, err
+	}
 	if err := writeRuntimeProviders(options.ProvidersOutput, groups); err != nil {
 		return RuntimeResult{}, err
 	}
@@ -361,6 +364,7 @@ type loadedGroup struct {
 	ID           string
 	Metadata     Metadata
 	ProviderPath string
+	RuntimePath  string
 	Nodes        []provider.NodeSummary
 	RuntimeTag   string
 	hasNodes     bool
@@ -389,7 +393,7 @@ func loadGroups(ctx context.Context, root string, includeEmpty bool) ([]*loadedG
 			continue
 		}
 		groups = append(groups, &loadedGroup{
-			ID: entry.Name(), Metadata: metadata, ProviderPath: providerPath,
+			ID: entry.Name(), Metadata: metadata, ProviderPath: providerPath, RuntimePath: providerPath,
 			hasNodes: metadata.NodeCount > 0,
 		})
 	}
@@ -448,7 +452,7 @@ func writeRuntimeProviders(path string, groups []*loadedGroup) error {
 			Type: C.ProviderTypeLocal,
 			Tag:  group.RuntimeTag,
 			Options: &option.ProviderLocalOptions{
-				Path: group.ProviderPath,
+				Path: group.RuntimePath,
 				HealthCheck: option.ProviderHealthCheckOptions{
 					Enabled:  true,
 					URL:      "https://www.gstatic.com/generate_204",

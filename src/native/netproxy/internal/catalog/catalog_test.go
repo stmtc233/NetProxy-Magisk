@@ -313,6 +313,50 @@ func TestBuildRuntimeRejectsUnknownSelectorMode(t *testing.T) {
 	}
 }
 
+func TestBuildRuntimeAppliesSubscriptionServerDNSWithoutChangingProvider(t *testing.T) {
+	root := t.TempDir()
+	writeGroup(t, root, "remote", "远程订阅", "subscription", "REMOTE")
+	metadataPath := filepath.Join(root, "remote", "meta.json")
+	metadata, err := LoadMetadata(context.Background(), metadataPath, "remote")
+	if err != nil {
+		t.Fatal(err)
+	}
+	metadata.ServerDNS = "dns-proxy"
+	if err := SaveMetadataAtomic(context.Background(), metadataPath, metadata); err != nil {
+		t.Fatal(err)
+	}
+	providerPath := filepath.Join(root, "remote", "provider.json")
+	original, err := os.ReadFile(providerPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	runtimeDir := filepath.Join(root, "runtime")
+	if _, err := BuildRuntime(context.Background(), RuntimeOptions{
+		Root: root, ProvidersOutput: filepath.Join(runtimeDir, "providers.json"),
+		OutboundsOutput: filepath.Join(runtimeDir, "outbounds.json"), ActiveGroup: "remote",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	runtimeProviderPath := filepath.Join(runtimeDir, "providers", "remote.json")
+	providers := readFile(t, filepath.Join(runtimeDir, "providers.json"))
+	if !strings.Contains(providers, runtimeProviderPath) {
+		t.Fatalf("运行时 Provider 未引用隔离副本: %s", providers)
+	}
+	runtimeProvider := readFile(t, runtimeProviderPath)
+	if !strings.Contains(runtimeProvider, `"domain_resolver": "dns-proxy"`) {
+		t.Fatalf("运行时 Provider 未应用节点 DNS: %s", runtimeProvider)
+	}
+	unchanged, err := os.ReadFile(providerPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(unchanged) != string(original) {
+		t.Fatalf("持久 Provider 被运行时 DNS 改写:\n原始: %s\n当前: %s", original, unchanged)
+	}
+}
+
 func TestSchedule(t *testing.T) {
 	root := t.TempDir()
 	writeGroup(t, root, "due", "到期订阅", "subscription", "节点一")

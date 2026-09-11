@@ -10,6 +10,8 @@ import com.fanjv.netproxy.core.ui.toUiText
 import com.fanjv.netproxy.feature.catalog.data.SubscriptionRepository
 import com.fanjv.netproxy.feature.catalog.model.SubscriptionDraft
 import com.fanjv.netproxy.feature.catalog.model.SubscriptionEditorState
+import com.fanjv.netproxy.feature.kernel.presentation.DnsSettingsDocument
+import com.fanjv.netproxy.feature.settings.data.ConfigRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,6 +27,7 @@ internal data class SubscriptionEditorUiState(
     val original: SubscriptionEditorState? = null,
     val draft: SubscriptionDraft = SubscriptionDraft(name = "", url = ""),
     val headersText: String = "",
+    val dnsServerTags: List<String> = emptyList(),
     val loading: Boolean = false,
     val saving: Boolean = false,
     val saved: Boolean = false,
@@ -37,24 +40,30 @@ internal data class SubscriptionEditorUiState(
 
 /** 管理订阅新增和编辑事务，避免编辑状态泄漏到列表或详情页面。 */
 internal class SubscriptionEditorViewModel(
-    private val repository: SubscriptionRepository
+    private val repository: SubscriptionRepository,
+    private val configRepository: ConfigRepository,
 ) : ViewModel() {
     private val _state = MutableStateFlow(SubscriptionEditorUiState())
     val state: StateFlow<SubscriptionEditorUiState> = _state.asStateFlow()
 
     fun load(id: String) {
-        if (id.isBlank()) {
-            _state.value = SubscriptionEditorUiState()
-            return
-        }
         viewModelScope.launch {
             _state.update { it.copy(loading = true, saved = false, error = UiText.Empty) }
+            val dnsServerTags = runCatching {
+                DnsSettingsDocument.parse(configRepository.read(DNS_DOCUMENT)).serverTags
+                    .distinct()
+            }.getOrDefault(emptyList())
+            if (id.isBlank()) {
+                _state.value = SubscriptionEditorUiState(dnsServerTags = dnsServerTags)
+                return@launch
+            }
             runCatching { repository.readEditor(id) }
                 .onSuccess { editor ->
                     _state.value = SubscriptionEditorUiState(
                         id = id,
                         original = editor,
                         draft = editor.toDraft(),
+                        dnsServerTags = dnsServerTags,
                         headersText = editor.customHeaders.entries.joinToString("\n") { (key, value) ->
                             "$key: ${value.jsonPrimitive.content}"
                         }
@@ -204,9 +213,14 @@ internal class SubscriptionEditorViewModel(
         autoUpdate = autoUpdate,
         updateIntervalSeconds = updateInterval,
         updateViaProxy = updateViaProxy,
+        serverDns = serverDns,
         include = include,
         exclude = exclude,
         allowInsecure = allowInsecure,
         timeoutSeconds = timeout
     )
+
+    private companion object {
+        const val DNS_DOCUMENT = "singbox/dns"
+    }
 }

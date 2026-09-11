@@ -292,7 +292,7 @@ func TestCatalogGroupInitialization(t *testing.T) {
 		URL: "https://example.com/sub", UserAgent: "sing-box", HWID: "device",
 		CustomHeaders: map[string]string{"X-Test": "value"}, AutoUpdate: true,
 		UpdateInterval: 900, IntervalSource: "user", UpdateViaProxy: "auto",
-		Timeout: 30, Now: now,
+		ServerDNS: "dns-proxy", Timeout: 30, Now: now,
 	}); err != nil {
 		t.Fatalf("initialize group: %v", err)
 	}
@@ -302,7 +302,8 @@ func TestCatalogGroupInitialization(t *testing.T) {
 		t.Fatalf("load initialized metadata: %v", err)
 	}
 	if metadata.Type != "subscription" || metadata.URL != "https://example.com/sub" ||
-		metadata.CustomHeaders["X-Test"] != "value" || metadata.NextUpdateEpoch != now.Unix()+900 {
+		metadata.CustomHeaders["X-Test"] != "value" || metadata.ServerDNS != "dns-proxy" ||
+		metadata.NextUpdateEpoch != now.Unix()+900 {
 		t.Fatalf("unexpected initialized metadata: %+v", metadata)
 	}
 	document, err := provider.LoadAllowEmpty(context.Background(), filepath.Join(groupDir, "provider.json"))

@@ -160,6 +160,8 @@
     <string name="subscription_editor_network_auto">自动</string>
     <string name="subscription_editor_network_proxy">始终通过代理</string>
     <string name="subscription_editor_network_direct">始终直连</string>
+    <string name="subscription_editor_server_dns">节点域名 DNS</string>
+    <string name="subscription_editor_server_dns_default">继承默认</string>
     <string name="subscription_editor_filter_section">筛选与连接</string>
     <string name="subscription_editor_include">仅保留（正则，可选）</string>
     <string name="subscription_editor_exclude">排除（正则，可选）</string>

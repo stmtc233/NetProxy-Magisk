@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/Fanju6/NetProxy-Magisk/src/native/netproxy/internal/catalog"
 )
@@ -29,6 +30,7 @@ type EditOptions struct {
 	AutoUpdate     *bool
 	UpdateInterval *int64
 	UpdateViaProxy *string
+	ServerDNS      *string
 	Include        *string
 	Exclude        *string
 	AllowInsecure  *bool
@@ -40,6 +42,7 @@ type EditOptions struct {
 type EditResult struct {
 	GroupID            string `json:"group_id"`
 	NameChanged        bool   `json:"name_changed"`
+	RuntimeChanged     bool   `json:"runtime_changed"`
 	RequiresUpdate     bool   `json:"requires_update"`
 	NodeCount          int    `json:"node_count"`
 	Revision           int64  `json:"revision"`
@@ -92,6 +95,7 @@ func Edit(ctx context.Context, options EditOptions) (EditResult, error) {
 	oldMetadata := metadata
 	oldMetadata.CustomHeaders = cloneHeaders(metadata.CustomHeaders)
 	nameChanged := false
+	runtimeChanged := false
 	requiresUpdate := false
 
 	if options.Name != nil {
@@ -167,6 +171,14 @@ func Edit(ctx context.Context, options EditOptions) (EditResult, error) {
 			requiresUpdate = true
 		}
 	}
+	if options.ServerDNS != nil {
+		if err := validateEditText(*options.ServerDNS); err != nil {
+			return EditResult{}, err
+		}
+		serverDNS := strings.TrimSpace(*options.ServerDNS)
+		runtimeChanged = metadata.ServerDNS != serverDNS
+		metadata.ServerDNS = serverDNS
+	}
 	if options.Include != nil {
 		if err := validateEditText(*options.Include); err != nil {
 			return EditResult{}, err
@@ -223,8 +235,9 @@ func Edit(ctx context.Context, options EditOptions) (EditResult, error) {
 	locked = false
 	if !requiresUpdate || options.DeferUpdate {
 		return EditResult{
-			GroupID: options.GroupID, NameChanged: nameChanged, RequiresUpdate: requiresUpdate,
-			NodeCount: metadata.NodeCount, Revision: metadata.Revision, Persisted: true,
+			GroupID: options.GroupID, NameChanged: nameChanged, RuntimeChanged: runtimeChanged,
+			RequiresUpdate: requiresUpdate,
+			NodeCount:      metadata.NodeCount, Revision: metadata.Revision, Persisted: true,
 			RuntimeSynced:    metadata.RuntimeSyncState == RuntimeSyncApplied && !metadata.RuntimeSyncPending,
 			RuntimeSyncState: metadata.RuntimeSyncState, RuntimeSyncPending: metadata.RuntimeSyncPending,
 		}, nil
@@ -236,13 +249,13 @@ func Edit(ctx context.Context, options EditOptions) (EditResult, error) {
 	})
 	if err != nil {
 		if updated.Persisted {
-			return mergeEditResult(EditResult{GroupID: options.GroupID, NameChanged: nameChanged, RequiresUpdate: requiresUpdate}, updated), err
+			return mergeEditResult(EditResult{GroupID: options.GroupID, NameChanged: nameChanged, RuntimeChanged: runtimeChanged, RequiresUpdate: requiresUpdate}, updated), err
 		}
 		editBeforeRestoreHook()
 		restoreErr := restoreMetadataIfUnchanged(ctx, options.Root, options.GroupID, metaPath, oldMetadata, metadata)
 		return EditResult{}, errors.Join(err, restoreErr)
 	}
-	return mergeEditResult(EditResult{GroupID: options.GroupID, NameChanged: nameChanged, RequiresUpdate: true}, updated), nil
+	return mergeEditResult(EditResult{GroupID: options.GroupID, NameChanged: nameChanged, RuntimeChanged: runtimeChanged, RequiresUpdate: true}, updated), nil
 }
 
 func mergeEditResult(edit EditResult, update Result) EditResult {
@@ -296,6 +309,7 @@ func sameEditMetadata(left, right catalog.Metadata) bool {
 		left.UpdateInterval == right.UpdateInterval &&
 		left.IntervalSource == right.IntervalSource &&
 		left.UpdateViaProxy == right.UpdateViaProxy &&
+		left.ServerDNS == right.ServerDNS &&
 		left.Include == right.Include &&
 		left.Exclude == right.Exclude &&
 		left.AllowInsecure == right.AllowInsecure &&
@@ -305,8 +319,8 @@ func sameEditMetadata(left, right catalog.Metadata) bool {
 }
 
 func validateEditText(value string) error {
-	if strings.ContainsAny(value, "\r\n\t") {
-		return &Error{Code: "subscription.text_invalid", Message: "订阅设置不能包含制表符或换行"}
+	if strings.IndexFunc(value, unicode.IsControl) >= 0 {
+		return &Error{Code: "subscription.text_invalid", Message: "订阅设置不能包含控制字符"}
 	}
 	return nil
 }
