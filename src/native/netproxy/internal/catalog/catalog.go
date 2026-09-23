@@ -77,14 +77,15 @@ type ScanOptions struct {
 }
 
 type RuntimeOptions struct {
-	Root            string
-	ModuleConfig    string
-	ProvidersOutput string
-	OutboundsOutput string
-	ActiveGroup     string
-	SelectorMode    string
-	SelectedNodeRef string
-	AllowEmpty      bool
+	Root               string
+	ModuleConfig       string
+	ProvidersOutput    string
+	OutboundsOutput    string
+	ActiveGroup        string
+	SelectorMode       string
+	SelectedNodeRef    string
+	NodeDomainStrategy string
+	AllowEmpty         bool
 }
 
 type RuntimeResult struct {
@@ -336,7 +337,7 @@ func BuildRuntime(ctx context.Context, options RuntimeOptions) (RuntimeResult, e
 		selected = ""
 	}
 
-	if err := prepareRuntimeProviders(ctx, filepath.Dir(options.ProvidersOutput), groups); err != nil {
+	if err := prepareRuntimeProviders(ctx, filepath.Dir(options.ProvidersOutput), groups, options.NodeDomainStrategy); err != nil {
 		return RuntimeResult{}, err
 	}
 	if err := prepareRuntimeProviderCopies(ctx, filepath.Dir(options.ProvidersOutput), groups); err != nil {

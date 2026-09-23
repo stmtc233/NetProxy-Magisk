@@ -302,12 +302,14 @@
     <string name="dns_common_settings">常用设置</string>
     <string name="dns_final_server">默认 DNS</string>
     <string name="dns_final_default">内核默认</string>
-    <string name="dns_strategy">域名策略</string>
     <string name="dns_strategy_default">默认</string>
     <string name="dns_strategy_prefer_ipv4">优先 IPv4</string>
     <string name="dns_strategy_prefer_ipv6">优先 IPv6</string>
     <string name="dns_strategy_ipv4_only">仅 IPv4</string>
     <string name="dns_strategy_ipv6_only">仅 IPv6</string>
+    <string name="dns_remote_strategy">远程 DNS 解析策略</string>
+    <string name="dns_direct_strategy">直连 DNS 解析策略</string>
+    <string name="dns_node_strategy">节点域名解析策略</string>
     <string name="dns_optimistic">乐观缓存</string>
     <string name="dns_reverse_mapping">反向映射</string>
     <string name="dns_disable_cache">禁用 DNS 缓存</string>

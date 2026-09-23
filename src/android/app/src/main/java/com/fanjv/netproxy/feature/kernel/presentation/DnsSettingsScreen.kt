@@ -214,14 +214,36 @@ private fun DnsSettingsContent(
                         },
                     )
                 },
-                CardItem("strategy") {
+                CardItem("remote_strategy") {
                     OverlayDropdownPreference(
-                        title = stringResource(R.string.dns_strategy),
+                        title = stringResource(R.string.dns_remote_strategy),
                         items = strategyLabels,
-                        selectedIndex = DnsSettingsDocument.strategies.indexOf(document.strategy)
+                        selectedIndex = DnsSettingsDocument.strategies.indexOf(document.remoteStrategy)
                             .coerceAtLeast(0),
                         onSelectedIndexChange = { index ->
-                            onUpdate { it.copy(strategy = DnsSettingsDocument.strategies[index]) }
+                            onUpdate { it.copy(remoteStrategy = DnsSettingsDocument.strategies[index]) }
+                        },
+                    )
+                },
+                CardItem("direct_strategy") {
+                    OverlayDropdownPreference(
+                        title = stringResource(R.string.dns_direct_strategy),
+                        items = strategyLabels,
+                        selectedIndex = DnsSettingsDocument.strategies.indexOf(document.directStrategy)
+                            .coerceAtLeast(0),
+                        onSelectedIndexChange = { index ->
+                            onUpdate { it.copy(directStrategy = DnsSettingsDocument.strategies[index]) }
+                        },
+                    )
+                },
+                CardItem("node_strategy") {
+                    OverlayDropdownPreference(
+                        title = stringResource(R.string.dns_node_strategy),
+                        items = strategyLabels,
+                        selectedIndex = DnsSettingsDocument.strategies.indexOf(document.nodeStrategy)
+                            .coerceAtLeast(0),
+                        onSelectedIndexChange = { index ->
+                            onUpdate { it.copy(nodeStrategy = DnsSettingsDocument.strategies[index]) }
                         },
                     )
                 },

@@ -105,9 +105,12 @@ internal data class DnsServerDraft(
 internal data class DnsSettingsDocument(
     val root: JsonObject,
     val dnsRaw: JsonObject,
+    val routeRoot: JsonObject? = null,
     val servers: List<DnsServerDraft>,
     val finalServer: String,
-    val strategy: String,
+    val remoteStrategy: String,
+    val directStrategy: String,
+    val nodeStrategy: String,
     val optimistic: Boolean,
     val reverseMapping: Boolean,
     val disableCache: Boolean,
@@ -120,13 +123,61 @@ internal data class DnsSettingsDocument(
         val dns = dnsRaw.toMutableMap()
         dns["servers"] = JsonArray(servers.map(DnsServerDraft::encode))
         updateString(dns, "final", finalServer, dnsRaw.stringValue("final"))
-        updateString(dns, "strategy", strategy, dnsRaw.stringValue("strategy"))
+        updateString(dns, "strategy", remoteStrategy, dnsRaw.stringValue("strategy"))
         updateBoolean(dns, "reverse_mapping", reverseMapping, dnsRaw.booleanValue("reverse_mapping"))
         updateBoolean(dns, "disable_cache", disableCache, dnsRaw.booleanValue("disable_cache"))
         updateOptimistic(dns, optimistic, dnsRaw["optimistic"])
+        updateRouteStrategies(
+            dns = dns,
+            remoteStrategy = remoteStrategy,
+            directStrategy = directStrategy,
+            originalRemoteStrategy = dnsRaw.routeStrategy("dns-proxy"),
+            originalDirectStrategy = dnsRaw.routeStrategy("dns-direct"),
+        )
 
         val document = root.toMutableMap()
         document["dns"] = JsonObject(dns)
+        return prettyJson.encodeToString(JsonElement.serializer(), JsonObject(document)) + "\n"
+    }
+
+    fun encodeRoute(): String? {
+        val routeDocument = routeRoot ?: return null
+        val route = routeDocument["route"]?.jsonObject ?: return null
+        val original = route["default_domain_resolver"]
+        val resolver = when {
+            nodeStrategy.isBlank() && original is JsonPrimitive -> original
+            nodeStrategy.isBlank() && original == null -> null
+            else -> {
+                val server = when (original) {
+                    is JsonPrimitive -> original.contentOrNull.orEmpty()
+                    is JsonObject -> original.stringValue("server").orEmpty()
+                    else -> ""
+                }.ifBlank { "dns-direct" }
+                JsonObject(buildMap {
+                    put("server", JsonPrimitive(server))
+                    if (nodeStrategy.isNotBlank()) put("strategy", JsonPrimitive(nodeStrategy))
+                    if (original is JsonObject) {
+                        original.forEach { (key, value) ->
+                            if (key != "server" && key != "strategy") put(key, value)
+                        }
+                    }
+                })
+            }
+        }
+        val updatedRoute = route.toMutableMap()
+        if (resolver == null) updatedRoute.remove("default_domain_resolver")
+        else updatedRoute["default_domain_resolver"] = resolver
+        val document = routeDocument.toMutableMap()
+        document["route"] = JsonObject(updatedRoute)
+        return prettyJson.encodeToString(JsonElement.serializer(), JsonObject(document)) + "\n"
+    }
+
+    fun encodeCombined(): String {
+        val dnsDocument = parser.parseToJsonElement(encode()).jsonObject
+        val routeDocument = encodeRoute()?.let { parser.parseToJsonElement(it).jsonObject }
+        if (routeDocument == null || "route" !in routeDocument) return encode()
+        val document = dnsDocument.toMutableMap()
+        document["route"] = routeDocument.getValue("route")
         return prettyJson.encodeToString(JsonElement.serializer(), JsonObject(document)) + "\n"
     }
 
@@ -135,6 +186,9 @@ internal data class DnsSettingsDocument(
         if (tags.any(String::isBlank)) return "DNS 服务器标签不能为空"
         if (tags.size != tags.distinct().size) return "DNS 服务器标签不能重复"
         servers.forEach { server -> server.validate()?.let { return it } }
+        listOf(remoteStrategy, directStrategy, nodeStrategy).forEach { value ->
+            if (value !in strategies) return "DNS 域名策略无效"
+        }
         if (finalServer.isNotBlank() && finalServer !in tags) return "默认 DNS 服务器不存在"
         servers.filter { it.type == "group" }.forEach { group ->
             val missing = group.groupServers.lineValues().firstOrNull { it !in tags }
@@ -148,9 +202,11 @@ internal data class DnsSettingsDocument(
         private val parser = Json { ignoreUnknownKeys = false }
         private val prettyJson = Json { prettyPrint = true; prettyPrintIndent = "  " }
 
-        fun parse(content: String): DnsSettingsDocument {
+        fun parse(content: String, routeContent: String? = null): DnsSettingsDocument {
             val root = parser.parseToJsonElement(content).jsonObject
             val dns = root["dns"]?.jsonObject ?: error("配置中缺少 dns 分区")
+            val routeRoot = routeContent?.let { parser.parseToJsonElement(it).jsonObject }
+            val route = routeRoot?.get("route")?.jsonObject
             val servers = (dns["servers"] as? JsonArray).orEmpty().map { server ->
                 DnsServerDraft.parse(server.jsonObject)
             }
@@ -163,9 +219,13 @@ internal data class DnsSettingsDocument(
             return DnsSettingsDocument(
                 root = root,
                 dnsRaw = dns,
+                routeRoot = routeRoot,
                 servers = servers,
                 finalServer = dns.stringValue("final").orEmpty(),
-                strategy = dns.stringValue("strategy").orEmpty(),
+                remoteStrategy = dns.routeStrategy("dns-proxy"),
+                directStrategy = dns.routeStrategy("dns-direct"),
+                nodeStrategy = (route?.get("default_domain_resolver") as? JsonObject)
+                    ?.stringValue("strategy").orEmpty(),
                 optimistic = optimistic,
                 reverseMapping = dns.booleanValue("reverse_mapping") ?: false,
                 disableCache = dns.booleanValue("disable_cache") ?: false,
@@ -173,6 +233,42 @@ internal data class DnsSettingsDocument(
             )
         }
     }
+}
+
+private fun updateRouteStrategies(
+    dns: MutableMap<String, JsonElement>,
+    remoteStrategy: String,
+    directStrategy: String,
+    originalRemoteStrategy: String,
+    originalDirectStrategy: String,
+) {
+    val rules = dns["rules"] as? JsonArray ?: return
+    val updated = rules.map { element ->
+        val rule = element as? JsonObject ?: return@map element
+        if (rule.stringValue("action") != "route") return@map element
+        val server = rule.stringValue("server")
+        val strategy = when (server) {
+            "dns-proxy" -> remoteStrategy.takeIf { it != originalRemoteStrategy }
+            "dns-direct" -> directStrategy.takeIf { it != originalDirectStrategy }
+            else -> return@map element
+        } ?: return@map element
+        val values = rule.toMutableMap()
+        if (strategy.isBlank()) values.remove("strategy")
+        else values["strategy"] = JsonPrimitive(strategy)
+        JsonObject(values)
+    }
+    dns["rules"] = JsonArray(updated)
+}
+
+private fun JsonObject.routeStrategy(server: String): String {
+    val rules = get("rules") as? JsonArray ?: return stringValue("strategy").orEmpty()
+    return rules.asSequence()
+        .mapNotNull { it as? JsonObject }
+        .firstOrNull {
+            it.stringValue("action") == "route" && it.stringValue("server") == server
+        }
+        ?.stringValue("strategy")
+        ?: stringValue("strategy").orEmpty()
 }
 
 private fun JsonObject.stringValue(key: String): String? {

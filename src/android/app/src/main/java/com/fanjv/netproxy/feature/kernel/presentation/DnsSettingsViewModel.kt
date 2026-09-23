@@ -29,9 +29,9 @@ internal class DnsSettingsViewModel(
     fun load() {
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = "") }
-            runCatching { repository.readSnapshot(DNS_DOCUMENT) }
+            runCatching { repository.readSnapshot(CONFIG_DOCUMENT) }
                 .onSuccess { snapshot ->
-                    runCatching { DnsSettingsDocument.parse(snapshot.content) }
+                    runCatching { DnsSettingsDocument.parse(snapshot.content, snapshot.content) }
                         .onSuccess { document ->
                             _state.value = DnsSettingsUiState(
                                 document = document,
@@ -90,7 +90,7 @@ internal class DnsSettingsViewModel(
         }
         viewModelScope.launch {
             _state.update { it.copy(saving = true, saved = false, error = "") }
-            runCatching { repository.apply(DNS_DOCUMENT, document.encode(), state.revision) }
+            runCatching { repository.apply(CONFIG_DOCUMENT, document.encodeCombined(), state.revision) }
                 .onSuccess { revision ->
                     _state.update {
                         it.copy(
@@ -116,6 +116,6 @@ internal class DnsSettingsViewModel(
     fun clearNotice() = _state.update { it.copy(saved = false, error = "") }
 
     private companion object {
-        const val DNS_DOCUMENT = "singbox/dns"
+        const val CONFIG_DOCUMENT = "singbox/config.json"
     }
 }

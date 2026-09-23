@@ -336,6 +336,7 @@ func TestBuildRuntimeAppliesSubscriptionServerDNSWithoutChangingProvider(t *test
 	if _, err := BuildRuntime(context.Background(), RuntimeOptions{
 		Root: root, ProvidersOutput: filepath.Join(runtimeDir, "providers.json"),
 		OutboundsOutput: filepath.Join(runtimeDir, "outbounds.json"), ActiveGroup: "remote",
+		NodeDomainStrategy: "prefer_ipv6",
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -346,7 +347,9 @@ func TestBuildRuntimeAppliesSubscriptionServerDNSWithoutChangingProvider(t *test
 		t.Fatalf("运行时 Provider 未引用隔离副本: %s", providers)
 	}
 	runtimeProvider := readFile(t, runtimeProviderPath)
-	if !strings.Contains(runtimeProvider, `"domain_resolver": "dns-proxy"`) {
+	if !strings.Contains(runtimeProvider, `"domain_resolver": {`) ||
+		!strings.Contains(runtimeProvider, `"server": "dns-proxy"`) ||
+		!strings.Contains(runtimeProvider, `"strategy": "prefer_ipv6"`) {
 		t.Fatalf("运行时 Provider 未应用节点 DNS: %s", runtimeProvider)
 	}
 	unchanged, err := os.ReadFile(providerPath)

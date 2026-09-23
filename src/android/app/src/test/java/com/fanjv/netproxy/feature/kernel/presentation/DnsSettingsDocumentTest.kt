@@ -17,13 +17,15 @@ class DnsSettingsDocumentTest {
         val document = DnsSettingsDocument.parse(DEFAULT_DNS)
 
         assertEquals("dns-proxy", document.finalServer)
-        assertEquals("prefer_ipv4", document.strategy)
+        assertEquals("prefer_ipv4", document.remoteStrategy)
+        assertEquals("prefer_ipv4", document.directStrategy)
+        assertEquals("", document.nodeStrategy)
         assertTrue(document.optimistic)
         assertEquals(listOf("dns-proxy", "cloudflare", "hosts"), document.serverTags)
         assertEquals("cloudflare\nhosts", document.servers.first().groupServers)
 
         val encoded = Json.parseToJsonElement(
-            document.copy(strategy = "prefer_ipv6", reverseMapping = true).encode()
+            document.copy(remoteStrategy = "prefer_ipv6", reverseMapping = true).encode()
         ).jsonObject
         val dns = encoded["dns"]!!.jsonObject
         assertEquals("keep", dns["custom"]!!.jsonPrimitive.content)
@@ -32,6 +34,61 @@ class DnsSettingsDocumentTest {
         assertEquals(
             "keep-server",
             dns["servers"]!!.jsonArray[1].jsonObject["custom"]!!.jsonPrimitive.content,
+        )
+    }
+
+    @Test
+    fun editsIndependentRemoteDirectAndNodeStrategies() {
+        val document = DnsSettingsDocument.parse(
+            DEFAULT_DNS,
+            """
+                {"route":{"default_domain_resolver":"dns-direct","rules":[]}}
+            """.trimIndent(),
+        ).copy(
+            remoteStrategy = "prefer_ipv6",
+            directStrategy = "ipv4_only",
+            nodeStrategy = "ipv6_only",
+        )
+
+        val dns = Json.parseToJsonElement(document.encode()).jsonObject["dns"]!!.jsonObject
+        assertEquals(
+            "prefer_ipv6",
+            dns["rules"]!!.jsonArray[0].jsonObject["strategy"]!!.jsonPrimitive.content,
+        )
+        assertEquals(
+            "ipv4_only",
+            dns["rules"]!!.jsonArray[1].jsonObject["strategy"]!!.jsonPrimitive.content,
+        )
+        val route = Json.parseToJsonElement(document.encodeRoute()!!).jsonObject["route"]!!.jsonObject
+        assertEquals("dns-direct", route["default_domain_resolver"]!!.jsonObject["server"]!!.jsonPrimitive.content)
+        assertEquals("ipv6_only", route["default_domain_resolver"]!!.jsonObject["strategy"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun combinedEncodingPreservesOtherTopLevelFields() {
+        val fullConfig = """
+            {
+              "dns": ${Json.parseToJsonElement(DEFAULT_DNS).jsonObject["dns"]},
+              "route": {
+                "default_domain_resolver": "dns-direct",
+                "rules": [{"outbound":"Proxy"}]
+              },
+              "log": {"level":"info"}
+            }
+        """.trimIndent()
+        val document = DnsSettingsDocument.parse(fullConfig, fullConfig).copy(
+            remoteStrategy = "prefer_ipv4",
+            directStrategy = "ipv4_only",
+            nodeStrategy = "prefer_ipv6",
+        )
+
+        val encoded = Json.parseToJsonElement(document.encodeCombined()).jsonObject
+        assertEquals("info", encoded["log"]!!.jsonObject["level"]!!.jsonPrimitive.content)
+        assertEquals(1, encoded["route"]!!.jsonObject["rules"]!!.jsonArray.size)
+        assertEquals(
+            "prefer_ipv6",
+            encoded["route"]!!.jsonObject["default_domain_resolver"]!!
+                .jsonObject["strategy"]!!.jsonPrimitive.content,
         )
     }
 
@@ -114,7 +171,10 @@ class DnsSettingsDocumentTest {
                     "predefined": { "cloudflare-dns.com": ["1.1.1.1", "1.0.0.1"] }
                   }
                 ],
-                "rules": [{ "action": "route", "server": "dns-proxy" }],
+                "rules": [
+                  { "action": "route", "server": "dns-proxy" },
+                  { "action": "route", "server": "dns-direct" }
+                ],
                 "final": "dns-proxy",
                 "strategy": "prefer_ipv4",
                 "optimistic": true,
