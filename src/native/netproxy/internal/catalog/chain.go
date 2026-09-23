@@ -121,6 +121,7 @@ func HasProxyChains(ctx context.Context, root string) (bool, error) {
 
 func prepareRuntimeProviderCopies(ctx context.Context, runtimeDir string, groups []*loadedGroup) error {
 	for _, group := range groups {
+		group.RuntimePath = group.ProviderPath
 		group.ChainExclude = nil
 		if group.Metadata.FrontProxy == "" && group.Metadata.LandingProxy == "" {
 			continue
@@ -144,7 +145,7 @@ func prepareRuntimeProviderCopies(ctx context.Context, runtimeDir string, groups
 }
 
 func buildChainedProvider(ctx context.Context, groups []*loadedGroup, group *loadedGroup) (provider.Document, error) {
-	source, err := provider.Load(ctx, group.ResolvedPath)
+	source, err := provider.Load(ctx, group.ProviderPath)
 	if err != nil {
 		return provider.Document{}, err
 	}
@@ -236,7 +237,7 @@ func loadRuntimeProxyReference(ctx context.Context, groups []*loadedGroup, refer
 		if group.ID != groupID {
 			continue
 		}
-		document, err := provider.Load(ctx, group.ResolvedPath)
+		document, err := provider.Load(ctx, group.ProviderPath)
 		if err != nil {
 			return provider.Document{}, err
 		}

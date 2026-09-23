@@ -46,41 +46,6 @@ func TestEditUpdatesSchedulingWithoutDownloading(t *testing.T) {
 	}
 }
 
-func TestEditServerDNSOnlyChangesRuntimeMetadata(t *testing.T) {
-	root := t.TempDir()
-	now := time.Unix(1_700_000_000, 0)
-	metadata := catalog.NewMetadata("sub-dns", "测试订阅", "subscription", "https://example.test/sub", now)
-	groupDir := filepath.Join(root, metadata.ID)
-	if err := catalog.SaveMetadataAtomic(context.Background(), filepath.Join(groupDir, "meta.json"), metadata); err != nil {
-		t.Fatal(err)
-	}
-
-	serverDNS := " dns-proxy "
-	result, err := Edit(context.Background(), EditOptions{
-		Root: root, GroupID: metadata.ID, ServerDNS: &serverDNS, Now: now,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.RequiresUpdate || !result.RuntimeChanged {
-		t.Fatalf("节点 DNS 编辑结果异常: %+v", result)
-	}
-	updated, err := catalog.LoadMetadata(context.Background(), filepath.Join(groupDir, "meta.json"), metadata.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if updated.ServerDNS != "dns-proxy" {
-		t.Fatalf("节点 DNS 未规范化保存: %+v", updated)
-	}
-
-	invalid := "dns-proxy\x00"
-	if _, err := Edit(context.Background(), EditOptions{
-		Root: root, GroupID: metadata.ID, ServerDNS: &invalid, Now: now,
-	}); err == nil {
-		t.Fatal("包含控制字符的节点 DNS 标签未被拒绝")
-	}
-}
-
 func TestEditProxyChainOnlyRequiresRuntimeSync(t *testing.T) {
 	root := t.TempDir()
 	now := time.Unix(1_700_000_000, 0)

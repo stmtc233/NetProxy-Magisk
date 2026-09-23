@@ -79,9 +79,6 @@ internal class SubscriptionRepository(
             if (original.landingProxy != updated.landingProxy) {
                 args += listOf("--landing-proxy", updated.landingProxy)
             }
-            if (original.serverDns != updated.serverDns) {
-                args += listOf("--server-dns", updated.serverDns)
-            }
             if (original.include != updated.include) args += listOf("--include", updated.include)
             if (original.exclude != updated.exclude) args += listOf("--exclude", updated.exclude)
             if (original.allowInsecure != updated.allowInsecure) {
@@ -138,7 +135,6 @@ internal class SubscriptionRepository(
         if (draft.landingProxy.isNotBlank()) {
             args += listOf("--landing-proxy", draft.landingProxy)
         }
-        if (draft.serverDns.isNotBlank()) args += listOf("--server-dns", draft.serverDns)
         if (draft.include.isNotBlank()) args += listOf("--include", draft.include)
         if (draft.exclude.isNotBlank()) args += listOf("--exclude", draft.exclude)
         if (draft.allowInsecure) {

@@ -77,15 +77,14 @@ type ScanOptions struct {
 }
 
 type RuntimeOptions struct {
-	Root               string
-	ModuleConfig       string
-	ProvidersOutput    string
-	OutboundsOutput    string
-	ActiveGroup        string
-	SelectorMode       string
-	SelectedNodeRef    string
-	NodeDomainStrategy string
-	AllowEmpty         bool
+	Root            string
+	ModuleConfig    string
+	ProvidersOutput string
+	OutboundsOutput string
+	ActiveGroup     string
+	SelectorMode    string
+	SelectedNodeRef string
+	AllowEmpty      bool
 }
 
 type RuntimeResult struct {
@@ -337,9 +336,6 @@ func BuildRuntime(ctx context.Context, options RuntimeOptions) (RuntimeResult, e
 		selected = ""
 	}
 
-	if err := prepareRuntimeProviders(ctx, filepath.Dir(options.ProvidersOutput), groups, options.NodeDomainStrategy); err != nil {
-		return RuntimeResult{}, err
-	}
 	if err := prepareRuntimeProviderCopies(ctx, filepath.Dir(options.ProvidersOutput), groups); err != nil {
 		return RuntimeResult{}, err
 	}
@@ -372,7 +368,6 @@ type loadedGroup struct {
 	ProviderPath string
 	Nodes        []provider.NodeSummary
 	RuntimeTag   string
-	ResolvedPath string
 	RuntimePath  string
 	ChainExclude *badoption.Regexp
 	hasNodes     bool
@@ -402,7 +397,7 @@ func loadGroups(ctx context.Context, root string, includeEmpty bool) ([]*loadedG
 		}
 		groups = append(groups, &loadedGroup{
 			ID: entry.Name(), Metadata: metadata, ProviderPath: providerPath,
-			ResolvedPath: providerPath, RuntimePath: providerPath, hasNodes: metadata.NodeCount > 0,
+			RuntimePath: providerPath, hasNodes: metadata.NodeCount > 0,
 		})
 	}
 	sort.Slice(groups, func(i, j int) bool { return groups[i].ID < groups[j].ID })

@@ -13,9 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"encoding/json/jsontext"
-	json "encoding/json/v2"
-
 	"github.com/Fanju6/NetProxy-Magisk/src/native/netproxy/internal/catalog"
 	moduleconfig "github.com/Fanju6/NetProxy-Magisk/src/native/netproxy/internal/config"
 	"github.com/Fanju6/NetProxy-Magisk/src/native/netproxy/internal/ebpf"
@@ -102,12 +99,10 @@ func Prepare(ctx context.Context, options Options, allowEmpty bool) (PrepareResu
 	providers := filepath.Join(options.RuntimeDir, "providers.json")
 	outbounds := filepath.Join(options.RuntimeDir, "outbounds.json")
 	ebpfPath := filepath.Join(options.RuntimeDir, "ebpf.json")
-	nodeDomainStrategy := loadNodeDomainStrategy(paths.SingBoxConfig(options.SingBoxDir))
 	runtime, err := catalog.BuildRuntime(ctx, catalog.RuntimeOptions{
 		Root: options.CatalogRoot, ModuleConfig: options.ModuleConfig,
 		ProvidersOutput: providers, OutboundsOutput: outbounds,
-		NodeDomainStrategy: nodeDomainStrategy,
-		AllowEmpty:         allowEmpty,
+		AllowEmpty: allowEmpty,
 	})
 	if err != nil {
 		return PrepareResult{}, err
@@ -124,43 +119,6 @@ func Prepare(ctx context.Context, options Options, allowEmpty bool) (PrepareResu
 		logService(options, "WARN", "ebpf.package", "skipped", "分应用代理跳过未安装应用: %s", ref.String())
 	}
 	return PrepareResult{RuntimeResult: runtime, Providers: providers, Outbounds: outbounds, EBPF: ebpfPath}, nil
-}
-
-func loadNodeDomainStrategy(path string) string {
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return ""
-	}
-	var root map[string]jsontext.Value
-	if err := json.Unmarshal(content, &root); err != nil {
-		return ""
-	}
-	routeValue, ok := root["route"]
-	if !ok {
-		return ""
-	}
-	var route struct {
-		DefaultDomainResolver jsontext.Value `json:"default_domain_resolver"`
-	}
-	if err := json.Unmarshal(routeValue, &route); err != nil {
-		return ""
-	}
-	if len(route.DefaultDomainResolver) == 0 || string(route.DefaultDomainResolver) == "null" {
-		return ""
-	}
-	var resolver struct {
-		Strategy string `json:"strategy"`
-	}
-	if err := json.Unmarshal(route.DefaultDomainResolver, &resolver); err != nil {
-		// 兼容旧版字符串形式的 default_domain_resolver。
-		return ""
-	}
-	switch resolver.Strategy {
-	case "", "prefer_ipv4", "prefer_ipv6", "ipv4_only", "ipv6_only":
-		return resolver.Strategy
-	default:
-		return ""
-	}
 }
 
 func syncRuntimeSelection(ctx context.Context, options Options, runtime catalog.RuntimeResult) error {
@@ -722,7 +680,6 @@ type SubscriptionOptions struct {
 	UpdateViaProxy string
 	FrontProxy     string
 	LandingProxy   string
-	ServerDNS      string
 	Include        string
 	Exclude        string
 	AllowInsecure  bool
@@ -749,7 +706,7 @@ func AddSubscription(ctx context.Context, options SubscriptionOptions) (result s
 	if err != nil {
 		return subscription.Result{}, err
 	}
-	if err := catalog.InitializeGroup(ctx, catalog.GroupOptions{Root: options.CatalogRoot, GroupID: groupID, Name: options.Name, Type: "subscription", URL: options.URL, UserAgent: options.UserAgent, HWID: options.HWID, CustomHeaders: options.Headers, AutoUpdate: options.AutoUpdate, UpdateInterval: options.UpdateInterval, IntervalSource: options.IntervalSource, UpdateViaProxy: options.UpdateViaProxy, FrontProxy: options.FrontProxy, LandingProxy: options.LandingProxy, ServerDNS: options.ServerDNS, Include: options.Include, Exclude: options.Exclude, AllowInsecure: options.AllowInsecure, Timeout: options.Timeout}); err != nil {
+	if err := catalog.InitializeGroup(ctx, catalog.GroupOptions{Root: options.CatalogRoot, GroupID: groupID, Name: options.Name, Type: "subscription", URL: options.URL, UserAgent: options.UserAgent, HWID: options.HWID, CustomHeaders: options.Headers, AutoUpdate: options.AutoUpdate, UpdateInterval: options.UpdateInterval, IntervalSource: options.IntervalSource, UpdateViaProxy: options.UpdateViaProxy, FrontProxy: options.FrontProxy, LandingProxy: options.LandingProxy, Include: options.Include, Exclude: options.Exclude, AllowInsecure: options.AllowInsecure, Timeout: options.Timeout}); err != nil {
 		return subscription.Result{}, err
 	}
 	workerOptions := workerOptions(options.Options)

@@ -176,17 +176,19 @@ internal fun SingBoxKernelSettingsScreen(
                     contentPadding = innerPadding,
                     overscrollEffect = null,
                 ) {
+                    item {
+                        ArrowPreference(
+                            title = stringResource(R.string.dns_strategy_title),
+                            summary = stringResource(R.string.dns_strategy_summary),
+                            onClick = { navigator.push(Route.DnsStrategy) },
+                        )
+                    }
                     if (commonDocuments.isNotEmpty()) {
                         documentSection(
                             keyPrefix = "singbox_common",
                             title = { stringResource(R.string.singbox_common_configs) },
                             documents = commonDocuments,
-                            onOpen = {
-                                navigator.push(
-                                    if (it.section == "dns") Route.DnsSettings
-                                    else Route.JsonEdit(it.id)
-                                )
-                            },
+                            onOpen = { navigator.push(Route.JsonEdit(it.id)) },
                         )
                     }
                     if (advancedDocuments.isNotEmpty()) {
@@ -202,13 +204,7 @@ internal fun SingBoxKernelSettingsScreen(
                             keyPrefix = "singbox_local_rules",
                             title = { stringResource(R.string.singbox_rule_files) },
                             documents = localRuleDocuments,
-                            onOpen = {
-                                navigator.push(
-                                    Route.LocalRules(
-                                        it.filename.substringBeforeLast('.')
-                                    )
-                                )
-                            },
+                            onOpen = { navigator.push(Route.JsonEdit(it.id)) },
                         )
                     }
                     if (runtimeDocuments.isNotEmpty()) {

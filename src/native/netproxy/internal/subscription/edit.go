@@ -9,7 +9,6 @@ import (
 	"reflect"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/Fanju6/NetProxy-Magisk/src/native/netproxy/internal/catalog"
 )
@@ -32,7 +31,6 @@ type EditOptions struct {
 	UpdateViaProxy *string
 	FrontProxy     *string
 	LandingProxy   *string
-	ServerDNS      *string
 	Include        *string
 	Exclude        *string
 	AllowInsecure  *bool
@@ -192,16 +190,6 @@ func Edit(ctx context.Context, options EditOptions) (EditResult, error) {
 		metadata.LandingProxy = *options.LandingProxy
 		runtimeChanged = true
 	}
-	if options.ServerDNS != nil {
-		if err := validateEditText(*options.ServerDNS); err != nil {
-			return EditResult{}, err
-		}
-		serverDNS := strings.TrimSpace(*options.ServerDNS)
-		if metadata.ServerDNS != serverDNS {
-			metadata.ServerDNS = serverDNS
-			runtimeChanged = true
-		}
-	}
 	if options.Include != nil {
 		if err := validateEditText(*options.Include); err != nil {
 			return EditResult{}, err
@@ -334,7 +322,6 @@ func sameEditMetadata(left, right catalog.Metadata) bool {
 		left.UpdateViaProxy == right.UpdateViaProxy &&
 		left.FrontProxy == right.FrontProxy &&
 		left.LandingProxy == right.LandingProxy &&
-		left.ServerDNS == right.ServerDNS &&
 		left.Include == right.Include &&
 		left.Exclude == right.Exclude &&
 		left.AllowInsecure == right.AllowInsecure &&
@@ -344,8 +331,8 @@ func sameEditMetadata(left, right catalog.Metadata) bool {
 }
 
 func validateEditText(value string) error {
-	if strings.IndexFunc(value, unicode.IsControl) >= 0 {
-		return &Error{Code: "subscription.text_invalid", Message: "订阅设置不能包含控制字符"}
+	if strings.ContainsAny(value, "\r\n\t") {
+		return &Error{Code: "subscription.text_invalid", Message: "订阅设置不能包含制表符或换行"}
 	}
 	return nil
 }

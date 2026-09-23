@@ -55,7 +55,7 @@ EBPF_BYPASS_RULE_SET="geoip/cn"
 - `respect_policy`：仅在流量通过对应数据路径的 UID、来源和地址策略后接管。
 - `off`：不由 eBPF 入站接管 DNS。
 
-sing-box 侧 DNS 服务器、域名解析策略和 DNS 路由位于 `config/singbox/config.json` 的 `dns` 分区。管理器可以分别设置远程 DNS、直连 DNS 和节点域名的 IPv4/IPv6 解析策略：前两项写入指向 `dns-proxy`/`dns-direct` 的 DNS 路由规则，节点项写入 `route.default_domain_resolver.strategy`，并会应用到订阅节点的运行时 `domain_resolver`。默认 DNS A/AAAA 查询使用真实的 `dns-proxy` 服务器组，不使用 FakeIP 地址池。DNS 最终出站由 DNS 配置和 `OUTBOUND_MODE` 共同决定；若将兜底 DNS 设置为直连，解析请求可能不经过代理，这是可预期的配置取舍，不等同于核心故障。
+sing-box 侧 DNS 服务器与 DNS 路由位于 `config/singbox/config.json` 的 `dns` 分区。在管理器“内核设置 → DNS 解析策略”中，远程与直连策略分别写入指向 `dns-proxy`、`dns-direct` 的规则，节点域名策略写入 `route.default_domain_resolver.strategy`；不会启用订阅级 DNS 覆盖。默认 DNS A/AAAA 查询使用真实的 `dns-proxy` 服务器组，不使用 FakeIP 地址池。DNS 最终出站由 DNS 配置和 `OUTBOUND_MODE` 共同决定；若将兜底 DNS 设置为直连，解析请求可能不经过代理，这是可预期的配置取舍，不等同于核心故障。
 
 默认规则模式下，`geosite/category-ai-!cn`（境外 AI）与 `geosite/google` 规则集在中国域名分流前匹配，DNS 查询与连接均走代理。`geosite/cn` 域名使用直连 DNS，随后匹配的 `geosite/geolocation-!cn` 域名使用代理 DNS；未命中规则的查询仍以 `dns-proxy` 兜底。自定义直连、代理和广告规则保持更高的匹配优先级。
 

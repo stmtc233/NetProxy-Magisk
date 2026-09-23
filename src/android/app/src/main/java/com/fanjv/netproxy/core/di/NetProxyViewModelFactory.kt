@@ -14,8 +14,7 @@ import com.fanjv.netproxy.feature.catalog.presentation.subscriptions.Subscriptio
 import com.fanjv.netproxy.feature.catalog.presentation.subscriptions.SubscriptionsViewModel
 import com.fanjv.netproxy.feature.dashboard.presentation.CatalogDashboardViewModel
 import com.fanjv.netproxy.feature.kernel.presentation.SingBoxConfigViewModel
-import com.fanjv.netproxy.feature.kernel.presentation.DnsSettingsViewModel
-import com.fanjv.netproxy.feature.kernel.presentation.LocalRulesViewModel
+import com.fanjv.netproxy.feature.kernel.presentation.DnsStrategyViewModel
 import com.fanjv.netproxy.feature.logs.presentation.LogsViewModel
 import com.fanjv.netproxy.feature.settings.presentation.SettingsViewModel
 import com.fanjv.netproxy.feature.theme.presentation.ThemeViewModel
@@ -47,10 +46,7 @@ internal class NetProxyViewModelFactory(
                 )
 
             SubscriptionEditorViewModel::class.java ->
-                SubscriptionEditorViewModel(
-                    container.subscriptionRepository,
-                    container.configRepository
-                )
+                SubscriptionEditorViewModel(container.subscriptionRepository)
 
             AppsViewModel::class.java -> AppsViewModel(
                 container.appPolicyRepository,
@@ -67,13 +63,7 @@ internal class NetProxyViewModelFactory(
                 container.serviceRepository
             )
 
-            DnsSettingsViewModel::class.java -> DnsSettingsViewModel(
-                container.configRepository
-            )
-
-            LocalRulesViewModel::class.java -> LocalRulesViewModel(
-                container.configRepository
-            )
+            DnsStrategyViewModel::class.java -> DnsStrategyViewModel(container.configRepository)
 
             LogsViewModel::class.java -> LogsViewModel(container.logRepository)
             ThemeViewModel::class.java -> ThemeViewModel(container.themeManager)

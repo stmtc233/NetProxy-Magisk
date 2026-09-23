@@ -31,7 +31,6 @@ func (c *cli) subscription(ctx context.Context, args []string) error {
 	viaProxy := flags.String("via-proxy", "auto", "更新代理模式")
 	frontProxy := flags.String("front-proxy", "", "前置代理节点引用")
 	landingProxy := flags.String("landing-proxy", "", "落地代理节点引用")
-	serverDNS := flags.String("server-dns", "", "节点域名 DNS 服务器标签")
 	include := flags.String("include", "", "节点包含表达式")
 	exclude := flags.String("exclude", "", "节点排除表达式")
 	allowInsecure := flags.Bool("allow-insecure", false, "跳过 TLS 校验")
@@ -78,7 +77,7 @@ func (c *cli) subscription(ctx context.Context, args []string) error {
 				return err
 			}
 		}
-		updated, err := moduleapp.AddSubscription(ctx, moduleapp.SubscriptionOptions{Options: options, Name: *name, URL: *urlValue, UserAgent: *userAgent, HWID: *hwid, Headers: headers, AutoUpdate: *autoUpdate, UpdateInterval: seconds, IntervalSource: "user", UpdateViaProxy: *viaProxy, FrontProxy: *frontProxy, LandingProxy: *landingProxy, ServerDNS: *serverDNS, Include: *include, Exclude: *exclude, AllowInsecure: *allowInsecure, Timeout: *timeout})
+		updated, err := moduleapp.AddSubscription(ctx, moduleapp.SubscriptionOptions{Options: options, Name: *name, URL: *urlValue, UserAgent: *userAgent, HWID: *hwid, Headers: headers, AutoUpdate: *autoUpdate, UpdateInterval: seconds, IntervalSource: "user", UpdateViaProxy: *viaProxy, FrontProxy: *frontProxy, LandingProxy: *landingProxy, Include: *include, Exclude: *exclude, AllowInsecure: *allowInsecure, Timeout: *timeout})
 		if err != nil {
 			return moduleSubscriptionError(err)
 		}
@@ -147,9 +146,6 @@ func (c *cli) subscription(ctx context.Context, args []string) error {
 		}
 		if flagWasSet(flags, "landing-proxy") {
 			edit.LandingProxy = landingProxy
-		}
-		if flagWasSet(flags, "server-dns") {
-			edit.ServerDNS = serverDNS
 		}
 		if flagWasSet(flags, "include") {
 			edit.Include = include

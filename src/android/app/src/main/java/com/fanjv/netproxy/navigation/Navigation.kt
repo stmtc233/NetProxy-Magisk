@@ -50,14 +50,6 @@ sealed interface Route : NavKey, Parcelable {
 
     @Parcelize
     @Serializable
-    data object DnsSettings : Route
-
-    @Parcelize
-    @Serializable
-    data class LocalRules(val initialKind: String) : Route
-
-    @Parcelize
-    @Serializable
     data object Logs : Route
 
     @Parcelize
@@ -67,6 +59,10 @@ sealed interface Route : NavKey, Parcelable {
     @Parcelize
     @Serializable
     data class JsonEdit(val documentId: String) : Route
+
+    @Parcelize
+    @Serializable
+    data object DnsStrategy : Route
 
 }
 

@@ -86,29 +86,6 @@ func TestLoadAppPolicyReturnsTypedSettings(t *testing.T) {
 	}
 }
 
-func TestLoadNodeDomainStrategy(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.json")
-	for _, test := range []struct {
-		name    string
-		content string
-		want    string
-	}{
-		{name: "object", content: `{"route":{"default_domain_resolver":{"server":"dns-direct","strategy":"prefer_ipv6"}}}`, want: "prefer_ipv6"},
-		{name: "legacy string", content: `{"route":{"default_domain_resolver":"dns-direct"}}`},
-		{name: "invalid", content: `{"route":{"default_domain_resolver":{"server":"dns-direct","strategy":"invalid"}}}`},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			if err := os.WriteFile(path, []byte(test.content), 0o600); err != nil {
-				t.Fatal(err)
-			}
-			got := loadNodeDomainStrategy(path)
-			if got != test.want {
-				t.Fatalf("节点域名策略 = %q, want %q", got, test.want)
-			}
-		})
-	}
-}
-
 func TestUpdateAllSubscriptionsPreservesStructuredFailure(t *testing.T) {
 	root := t.TempDir()
 	options := newTestOptions(root)
