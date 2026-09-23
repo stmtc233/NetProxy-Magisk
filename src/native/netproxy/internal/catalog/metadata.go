@@ -38,6 +38,7 @@ type Metadata struct {
 	UpdateViaProxy     string                `json:"update_via_proxy"`
 	FrontProxy         string                `json:"front_proxy"`
 	LandingProxy       string                `json:"landing_proxy"`
+	ServerDNS          string                `json:"server_dns"`
 	Include            string                `json:"include"`
 	Exclude            string                `json:"exclude"`
 	AllowInsecure      bool                  `json:"allow_insecure"`

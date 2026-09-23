@@ -314,6 +314,109 @@ func TestBuildRuntimeRejectsUnknownSelectorMode(t *testing.T) {
 	}
 }
 
+func TestBuildRuntimeAppliesSubscriptionServerDNSWithoutChangingProvider(t *testing.T) {
+	root := t.TempDir()
+	writeGroup(t, root, "remote", "远程订阅", "subscription", "REMOTE")
+	metadataPath := filepath.Join(root, "remote", "meta.json")
+	metadata, err := LoadMetadata(context.Background(), metadataPath, "remote")
+	if err != nil {
+		t.Fatal(err)
+	}
+	metadata.ServerDNS = "dns-proxy"
+	if err := SaveMetadataAtomic(context.Background(), metadataPath, metadata); err != nil {
+		t.Fatal(err)
+	}
+	providerPath := filepath.Join(root, "remote", "provider.json")
+	original, err := os.ReadFile(providerPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	runtimeDir := filepath.Join(root, "runtime")
+	if _, err := BuildRuntime(context.Background(), RuntimeOptions{
+		Root: root, ProvidersOutput: filepath.Join(runtimeDir, "providers.json"),
+		OutboundsOutput: filepath.Join(runtimeDir, "outbounds.json"), ActiveGroup: "remote",
+		NodeDomainStrategy: "prefer_ipv6",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	runtimeProviderPath := filepath.Join(runtimeDir, "providers", "remote.json")
+	providers := readFile(t, filepath.Join(runtimeDir, "providers.json"))
+	if !strings.Contains(providers, runtimeProviderPath) {
+		t.Fatalf("运行时 Provider 未引用隔离副本: %s", providers)
+	}
+	runtimeProvider := readFile(t, runtimeProviderPath)
+	if !strings.Contains(runtimeProvider, `"domain_resolver": {`) ||
+		!strings.Contains(runtimeProvider, `"server": "dns-proxy"`) ||
+		!strings.Contains(runtimeProvider, `"strategy": "prefer_ipv6"`) {
+		t.Fatalf("运行时 Provider 未应用节点 DNS: %s", runtimeProvider)
+	}
+	unchanged, err := os.ReadFile(providerPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(unchanged) != string(original) {
+		t.Fatalf("持久 Provider 被运行时 DNS 改写:\n原始: %s\n当前: %s", original, unchanged)
+	}
+}
+
+func TestBuildRuntimeCombinesProxyChainAndSubscriptionDNS(t *testing.T) {
+	root := t.TempDir()
+	for _, group := range []struct {
+		id, name, groupType, tag, dns string
+	}{
+		{id: "front", name: "前置节点", groupType: "local", tag: "FRONT", dns: "dns-front"},
+		{id: "landing", name: "落地节点", groupType: "local", tag: "LANDING", dns: "dns-landing"},
+		{id: "remote", name: "远程订阅", groupType: "subscription", tag: "REMOTE", dns: "dns-remote"},
+	} {
+		writeGroup(t, root, group.id, group.name, group.groupType, group.tag)
+		metaPath := filepath.Join(root, group.id, "meta.json")
+		metadata, err := LoadMetadata(context.Background(), metaPath, group.id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		metadata.ServerDNS = group.dns
+		if group.id == "remote" {
+			metadata.FrontProxy = "front/FRONT"
+			metadata.LandingProxy = "landing/LANDING"
+		}
+		if err := SaveMetadataAtomic(context.Background(), metaPath, metadata); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	runtimeDir := filepath.Join(root, "runtime")
+	providersPath := filepath.Join(runtimeDir, "providers.json")
+	outboundsPath := filepath.Join(runtimeDir, "outbounds.json")
+	if _, err := BuildRuntime(context.Background(), RuntimeOptions{
+		Root: root, ProvidersOutput: providersPath, OutboundsOutput: outboundsPath,
+		ActiveGroup: "remote",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	chainContent := readFile(t, filepath.Join(runtimeDir, "providers", "remote.json"))
+	for _, expected := range []string{
+		`"tag": "__netproxy_chain__/front"`, `"domain_resolver": "dns-front"`,
+		`"tag": "__netproxy_chain__/base/0"`, `"domain_resolver": "dns-remote"`,
+		`"tag": "REMOTE"`, `"domain_resolver": "dns-landing"`,
+	} {
+		if !strings.Contains(chainContent, expected) {
+			t.Fatalf("组合运行时缺少 %s: %s", expected, chainContent)
+		}
+	}
+	if !strings.Contains(readFile(t, outboundsPath), `"exclude": "^远程订阅/__netproxy_chain__/"`) {
+		t.Fatalf("组合运行时未隐藏内部链节点: %s", readFile(t, outboundsPath))
+	}
+	for _, id := range []string{"front", "landing", "remote"} {
+		persistent := readFile(t, filepath.Join(root, id, "provider.json"))
+		if strings.Contains(persistent, "domain_resolver") || strings.Contains(persistent, "detour") {
+			t.Fatalf("持久 Provider %s 被运行时设置改写: %s", id, persistent)
+		}
+	}
+}
+
 func TestBuildRuntimeCreatesSubscriptionProxyChain(t *testing.T) {
 	root := t.TempDir()
 	writeGroup(t, root, "front", "前置节点", "local", "FRONT")
