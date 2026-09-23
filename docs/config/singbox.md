@@ -110,7 +110,7 @@ DNS 页面中配置的服务器标签也会作为订阅“节点域名 DNS”的
 ## API 与 Dashboard
 
 - Service API：`127.0.0.1:9090`，Dashboard 为 `http://127.0.0.1:9090/dashboard/`。
-- Clash API：`127.0.0.1:9999`，zashboard 为 `http://127.0.0.1:9999/ui/`。
+- Clash API：`127.0.0.1:9999`，供兼容的第三方 Clash 客户端连接。
 - 默认密钥：`singbox`。
 
 两个 API 均默认只监听 loopback。固定配置位于主配置的 `experimental.clash_api` 和 `services`，替换主配置时不要移除或随意更改它们，否则管理器和面板可能无法连接核心。
