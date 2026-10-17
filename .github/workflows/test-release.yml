@@ -1,0 +1,113 @@
+name: 测试版发布（无需密钥）
+
+# 手动触发：不依赖 PostHog 变量与 Android 签名密钥，构建标准模块包（不含 NetProxy.apk）
+# 并发布为 test-<提交> 预发布。仅用于 fork 自测，不替代 ci.yml 与 release.yml。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: test-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-release:
+    name: 构建并发布测试版
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: 配置 Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: src/native/netproxy/go.mod
+          cache: false
+
+      - name: 配置 Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: src/webui/package-lock.json
+
+      - name: 配置 Android JDK
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 25
+
+      - name: 配置 Gradle 缓存
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: 验证并构建 netproxyctl
+        run: |
+          set -euo pipefail
+          (cd src/native/netproxy && go vet ./... && go test ./...)
+          CGO_ENABLED=0 GOOS=android GOARCH=arm64 go build -C src/native/netproxy \
+            -trimpath -buildvcs=false -pgo=auto -ldflags="-s -w -buildid=" \
+            -o "$RUNNER_TEMP/netproxyctl-android" ./cmd/netproxyctl
+          install -m 0755 "$RUNNER_TEMP/netproxyctl-android" src/module/bin/netproxyctl
+
+      - name: 构建 WebUI
+        working-directory: src/webui
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: 构建 Android 平台辅助程序
+        working-directory: src/android
+        run: ./gradlew :platform:assembleDex --build-cache --no-daemon
+
+      - name: 打包模块
+        id: pack
+        run: |
+          set -euo pipefail
+          eval "$(sh .github/scripts/build-metadata.sh | sed "s/^\([a-z_]*\)=\(.*\)$/\1='\2'/")"
+          sed -i "s/^versionCode=.*/versionCode=$commit_count/" src/module/module.prop
+          name="NetProxy_${version}_${commit_count}_test.zip"
+          sh .github/scripts/package-module.sh src/module "$GITHUB_WORKSPACE" "$name"
+          mkdir -p "$RUNNER_TEMP/extra/bin"
+          cp src/android/platform/build/dex/classes.dex "$RUNNER_TEMP/extra/bin/android-platform.dex"
+          (cd "$RUNNER_TEMP/extra" && 7z a -tzip -mx=0 "$GITHUB_WORKSPACE/$name" bin/android-platform.dex)
+          7z t "$name"
+          {
+            echo "name=$name"
+            echo "tag=test-${short_sha}"
+            echo "version=$version"
+            echo "build=$commit_count"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: 发布测试版 Pre-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NAME: ${{ steps.pack.outputs.name }}
+          TAG: ${{ steps.pack.outputs.tag }}
+          VERSION: ${{ steps.pack.outputs.version }}
+          BUILD: ${{ steps.pack.outputs.build }}
+        run: |
+          set -euo pipefail
+          {
+            echo "测试版（标准包，不含管理器 APK，未使用官方签名与遥测）。"
+            echo
+            echo "版本: \`${VERSION}\` (build ${BUILD})"
+            echo "提交: \`${GITHUB_SHA::7}\`"
+            echo
+            echo "## 最近提交"
+            echo
+            git log --first-parent -8 --pretty=format:"- %s (%h)"
+            echo
+          } > "$RUNNER_TEMP/notes.md"
+          gh release delete "$TAG" --cleanup-tag -y || true
+          sleep 2
+          gh release create "$TAG" \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --title "$TAG 测试版" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            "$NAME"
