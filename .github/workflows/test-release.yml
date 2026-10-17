@@ -1,6 +1,6 @@
 name: 测试版发布（无需密钥）
 
-# 手动触发：不依赖 PostHog 变量与 Android 签名密钥，构建标准模块包（不含 NetProxy.apk）
+# 手动触发：不依赖 PostHog 变量与 Android 签名密钥，构建含管理器 APK 的模块包（管理器用每次运行生成的临时密钥签名）
 # 并发布为 test-<提交> 预发布。仅用于 fork 自测，不替代 ci.yml 与 release.yml。
 on:
   workflow_dispatch:
@@ -60,9 +60,36 @@ jobs:
           npm ci --no-audit --no-fund
           npm run build
 
-      - name: 构建 Android 平台辅助程序
-        working-directory: src/android
-        run: ./gradlew :platform:assembleDex --build-cache --no-daemon
+      - name: 构建并签名管理器（临时测试密钥）
+        run: |
+          set -euo pipefail
+          eval "$(sh .github/scripts/build-metadata.sh | sed "s/^\([a-z_]*\)=\(.*\)$/\1='\2'/")"
+          umask 077
+          KS="$RUNNER_TEMP/test-signing.jks"
+          PASS="$(head -c 24 /dev/urandom | base64 | tr -dc 'A-Za-z0-9')"
+          echo "::add-mask::$PASS"
+          keytool -genkeypair -keystore "$KS" -storepass "$PASS" -keypass "$PASS" \
+            -alias test -keyalg RSA -keysize 4096 -validity 3650 \
+            -dname "CN=NetProxy Test, O=fork test" >/dev/null
+          DIGEST="$(keytool -exportcert -keystore "$KS" -storepass "$PASS" -alias test | sha256sum | cut -d' ' -f1)"
+          # 平台辅助程序按固定证书摘要校验管理器签名；测试包仅在 CI 构建中改为临时密钥的摘要，不提交。
+          MAIN=src/android/platform/src/main/java/com/fanjv/netproxy/platform/Main.java
+          sed -i "s/MANAGER_CERTIFICATE_SHA256 = \"[a-f0-9]*\"/MANAGER_CERTIFICATE_SHA256 = \"$DIGEST\"/" "$MAIN"
+          grep -F "$DIGEST" "$MAIN"
+          (cd src/android && ./gradlew :app:assembleRelease :platform:assembleDex \
+            -PnetproxyManagerCi=true -PnetproxyManagerBuildId="$short_sha" \
+            -PnetproxyManagerVersion="$manager_version" \
+            --build-cache --no-daemon)
+          mkdir -p "$RUNNER_TEMP/manager"
+          APKSIGNER="$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n 1)"
+          STORE_PASS="$PASS" KEY_PASS="$PASS" "$APKSIGNER" sign --ks "$KS" --ks-key-alias test \
+            --ks-pass env:STORE_PASS --key-pass env:KEY_PASS --v4-signing-enabled false \
+            --out "$RUNNER_TEMP/manager/NetProxy.apk" \
+            src/android/app/build/outputs/apk/release/app-release-unsigned.apk
+          "$APKSIGNER" verify --print-certs "$RUNNER_TEMP/manager/NetProxy.apk" | grep -F "$DIGEST"
+          cp src/android/platform/build/dex/classes.dex "$RUNNER_TEMP/manager/classes.dex"
+          git checkout -- "$MAIN"
+          rm -f "$KS"
 
       - name: 打包模块
         id: pack
@@ -72,10 +99,7 @@ jobs:
           sed -i "s/^versionCode=.*/versionCode=$commit_count/" src/module/module.prop
           name="NetProxy_${version}_${commit_count}_test.zip"
           sh .github/scripts/package-module.sh src/module "$GITHUB_WORKSPACE" "$name"
-          mkdir -p "$RUNNER_TEMP/extra/bin"
-          cp src/android/platform/build/dex/classes.dex "$RUNNER_TEMP/extra/bin/android-platform.dex"
-          (cd "$RUNNER_TEMP/extra" && 7z a -tzip -mx=0 "$GITHUB_WORKSPACE/$name" bin/android-platform.dex)
-          7z t "$name"
+          sh .github/scripts/complete-module.sh "$name" "$RUNNER_TEMP/manager/NetProxy.apk" "$RUNNER_TEMP/manager/classes.dex"
           {
             echo "name=$name"
             echo "tag=test-${short_sha}"
@@ -93,7 +117,7 @@ jobs:
         run: |
           set -euo pipefail
           {
-            echo "测试版（标准包，不含管理器 APK，未使用官方签名与遥测）。"
+            echo "测试版（含管理器 APK）。管理器使用本次运行生成的临时密钥签名并改写了平台辅助程序的证书摘要，每次测试版签名都不同，升级前需先卸载旧管理器；未启用遥测。"
             echo
             echo "版本: \`${VERSION}\` (build ${BUILD})"
             echo "提交: \`${GITHUB_SHA::7}\`"
