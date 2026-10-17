@@ -614,3 +614,33 @@ func updateNodeCount(t *testing.T, path string, nodeCount int) {
 		t.Fatal(err)
 	}
 }
+
+func TestProxyChainsDependOnOnlyRelatedGroups(t *testing.T) {
+	root := t.TempDir()
+	for _, id := range []string{"front", "remote", "other"} {
+		writeGroup(t, root, id, id, "local", strings.ToUpper(id))
+	}
+	ctx := context.Background()
+	for _, id := range []string{"front", "remote", "other"} {
+		if depends, err := ProxyChainsDependOn(ctx, root, id); err != nil || depends {
+			t.Fatalf("无链路时 %s 不应触发: %v, %v", id, depends, err)
+		}
+	}
+	metaPath := filepath.Join(root, "remote", "meta.json")
+	metadata, err := LoadMetadata(ctx, metaPath, "remote")
+	if err != nil {
+		t.Fatal(err)
+	}
+	metadata.FrontProxy = "front/FRONT"
+	if err := SaveMetadataAtomic(ctx, metaPath, metadata); err != nil {
+		t.Fatal(err)
+	}
+	for id, want := range map[string]bool{"remote": true, "front": true, "other": false} {
+		if depends, err := ProxyChainsDependOn(ctx, root, id); err != nil || depends != want {
+			t.Fatalf("%s: 期望 %v，得到 %v, %v", id, want, depends, err)
+		}
+	}
+	if depends, err := ProxyChainsDependOn(ctx, root, ""); err != nil || !depends {
+		t.Fatalf("空分组应退化为整个 Catalog: %v, %v", depends, err)
+	}
+}

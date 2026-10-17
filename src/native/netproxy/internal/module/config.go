@@ -26,6 +26,7 @@ import (
 var (
 	configProcessRunning = service.ProcessRunning
 	configReload         = reloadAppliedConfig
+	catalogReload        = ReloadService
 	configRestoreReload  = reloadConfigSnapshot
 	configStop           = StopService
 	configStart          = startAppliedConfig

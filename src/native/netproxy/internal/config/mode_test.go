@@ -29,3 +29,18 @@ func TestModesRejectMalformedJSON(t *testing.T) {
 		}
 	}
 }
+
+func TestParseClashController(t *testing.T) {
+	for content, want := range map[string]string{
+		`{}`:                                "",
+		`{"experimental":{"clash_api":{}}}`: "",
+		`{"experimental":{"clash_api":{"external_controller":"127.0.0.1:9999"}}}`:            "127.0.0.1:9999",
+		`{"experimental":{"clash_api":{"external_controller":"0.0.0.0:9999","secret":"x"}}}`: "127.0.0.1:9999",
+		`{"experimental":{"clash_api":{"external_controller":"[::]:9999"}}}`:                 "[::1]:9999",
+	} {
+		got, err := ParseClashController([]byte(content))
+		if err != nil || got != want {
+			t.Fatalf("%s: %q, %v", content, got, err)
+		}
+	}
+}

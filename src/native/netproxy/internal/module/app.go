@@ -587,13 +587,13 @@ func applyCatalogChange(ctx, localContext context.Context, options Options, save
 	if runtimeTag == "" {
 		return subscription.RuntimeSyncNotRunning, true, StopService(ctx, options)
 	}
-	// 代理链节点在运行时副本中展开，Provider 文件监听不会重建链路，必须整核 reload。
-	hasProxyChains, err := catalog.HasProxyChains(localContext, options.CatalogRoot)
+	// 代理链节点在运行时副本中展开，Provider 文件监听不会重建链路；仅当变更分组与链路相关时才整核 reload。
+	hasProxyChains, err := catalog.ProxyChainsDependOn(localContext, options.CatalogRoot, preferredGroup)
 	if err != nil {
 		return "", true, err
 	}
 	if structureChanged || hasProxyChains || selection.ActiveGroupID != saved.ActiveGroupID {
-		err = ReloadService(ctx, options)
+		err = catalogReload(ctx, options)
 	} else {
 		active, inner := selection.RuntimeTargets(runtimeTag)
 		err = syncRuntimeSelector(ctx, options, active, inner)

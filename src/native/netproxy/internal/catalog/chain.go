@@ -93,8 +93,12 @@ func ValidateProxyReferenceTargetsLocked(ctx context.Context, root, groupID stri
 	return nil
 }
 
-// HasProxyChains 返回 Catalog 中是否存在需要重建运行时 Provider 的代理链。
-func HasProxyChains(ctx context.Context, root string) (bool, error) {
+// ProxyChainsDependOn 返回 groupID 内容变化是否需要重建运行时代理链副本：
+// 该分组自身配置了前置/落地，或任一分组的前置/落地引用了该分组的节点。
+// 运行时副本位于 runtime/providers，Provider 文件监听看不到持久 provider.json 的变化，
+// 因此只有这两类情况必须整核 reload，其他分组更新不得因 Catalog 内存在链路而重载。
+// groupID 为空时退化为判断整个 Catalog 是否存在代理链。
+func ProxyChainsDependOn(ctx context.Context, root, groupID string) (bool, error) {
 	release, err := acquireCatalogRootAndRecover(ctx, root)
 	if err != nil {
 		return false, err
@@ -112,8 +116,16 @@ func HasProxyChains(ctx context.Context, root string) (bool, error) {
 		if err != nil {
 			return false, err
 		}
-		if metadata.FrontProxy != "" || metadata.LandingProxy != "" {
+		if metadata.FrontProxy == "" && metadata.LandingProxy == "" {
+			continue
+		}
+		if groupID == "" || entry.Name() == groupID {
 			return true, nil
+		}
+		for _, reference := range []string{metadata.FrontProxy, metadata.LandingProxy} {
+			if owner, _, ok := strings.Cut(reference, "/"); ok && owner == groupID {
+				return true, nil
+			}
 		}
 	}
 	return false, nil

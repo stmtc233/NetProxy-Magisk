@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -358,11 +359,14 @@ func reloadPreparedService(ctx context.Context, options Options, prepared Prepar
 	if err != nil {
 		return fmt.Errorf("Service API 未就绪，无法确认原位重新加载: %w", err)
 	}
+	if err := waitCoreSettled(ctx, options, pid, oldStartedAtMillis); err != nil {
+		return fmt.Errorf("无法重新加载: %w", err)
+	}
 	oldStartedAt := oldStartedAtMillis / 1000
 	if err := writeServiceState(options.StateFile, "starting", int64(pid), oldStartedAt, 0, ""); err != nil {
 		return err
 	}
-	if err := signalServiceReload(pid); err != nil {
+	if err := signalReload(pid); err != nil {
 		return restoreReloadState(ctx, options, pid, oldStartedAt, state.ReadyAt, err)
 	}
 	startedAt, err := waitForServiceReady(ctx, options, pid, serviceReadyTimeout, oldStartedAtMillis)
@@ -552,17 +556,74 @@ func serviceStartedAtMillis(ctx context.Context, options Options) (int64, error)
 	return startedAt.UnixMilli, nil
 }
 
+// coreStartFinished 与 signalReload 为测试注入点。
+var (
+	coreStartFinished = probeCoreStartFinished
+	signalReload      = signalServiceReload
+)
+
+const (
+	// 未配置 Clash API 时，Service API 启动时间稳定这么久才视为核心启动完成。
+	serviceStartSettle = 1500 * time.Millisecond
+	// 重载前等待上一个实例完成启动的上限。
+	reloadGuardTimeout = 15 * time.Second
+)
+
+// probeCoreStartFinished 判断 sing-box 是否已越过 Start() 的最后阶段。
+// Service API 在 finish-start 早期就监听，启动时间变化只说明 API 已启动；此时再收到 SIGHUP，
+// 内核会取消启动上下文并以 "start service: context canceled" 退出。
+// Clash API 在内部服务 finish-start 末尾才监听，其可连接即代表启动完成；未配置时退化为启动时间稳定窗口。
+func probeCoreStartFinished(ctx context.Context, controller string, startedAtMillis int64) bool {
+	if controller == "" {
+		return time.Since(time.UnixMilli(startedAtMillis)) >= serviceStartSettle
+	}
+	requestContext, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+	request, err := http.NewRequestWithContext(requestContext, http.MethodGet, "http://"+controller+"/version", nil)
+	if err != nil {
+		return false
+	}
+	client := &http.Client{
+		Transport:     &http.Transport{Proxy: nil, DisableKeepAlives: true},
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
+	defer client.CloseIdleConnections()
+	response, err := client.Do(request)
+	if err != nil {
+		return false
+	}
+	_ = response.Body.Close()
+	// 任意 HTTP 响应（含未授权）都说明监听已建立，不携带密钥。
+	return true
+}
+
+func loadClashController(options Options) string {
+	controller, err := moduleconfig.LoadClashController(paths.SingBoxConfig(options.SingBoxDir))
+	if err != nil {
+		return ""
+	}
+	return controller
+}
+
 func waitForServiceReady(ctx context.Context, options Options, pid int, timeout time.Duration, previousStartedAtMillis int64) (int64, error) {
+	controller := loadClashController(options)
 	deadline := time.NewTimer(timeout)
 	defer deadline.Stop()
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
+	var startedAt int64
 	for {
 		if !serviceProcessAlive(pid) {
 			return 0, errors.New("sing-box 进程已退出")
 		}
-		if startedAtMillis, err := serviceStartedAtMillis(ctx, options); err == nil && (previousStartedAtMillis == 0 || startedAtMillis != previousStartedAtMillis) {
-			return startedAtMillis, nil
+		if current, err := serviceStartedAtMillis(ctx, options); err == nil {
+			// 启动期间内核自行重载会再次改变启动时间，以最新值为准重新等待。
+			if current != startedAt && (startedAt != 0 || previousStartedAtMillis == 0 || current != previousStartedAtMillis) {
+				startedAt = current
+			}
+			if startedAt != 0 && coreStartFinished(ctx, controller, startedAt) {
+				return startedAt, nil
+			}
 		}
 		select {
 		case <-ctx.Done():
@@ -572,6 +633,28 @@ func waitForServiceReady(ctx context.Context, options Options, pid int, timeout 
 		case <-ticker.C:
 		}
 	}
+}
+
+// waitCoreSettled 在发送重载信号前确认当前实例已完成启动，避免 SIGHUP 打断仍在启动的实例。
+func waitCoreSettled(ctx context.Context, options Options, pid int, startedAtMillis int64) error {
+	controller := loadClashController(options)
+	deadline := time.NewTimer(reloadGuardTimeout)
+	defer deadline.Stop()
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+	for !coreStartFinished(ctx, controller, startedAtMillis) {
+		if !serviceProcessAlive(pid) {
+			return errors.New("sing-box 进程已退出")
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-deadline.C:
+			return errors.New("sing-box 仍在启动，暂不发送重载信号")
+		case <-ticker.C:
+		}
+	}
+	return nil
 }
 
 var ErrForcedTermination = errors.New("sing-box 已强制终止，无法确认入站及路由清理，请重启设备后重试")

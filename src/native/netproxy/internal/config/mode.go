@@ -3,6 +3,7 @@ package config
 import (
 	json "encoding/json/v2"
 	"errors"
+	"net"
 	"os"
 	"slices"
 
@@ -119,4 +120,41 @@ func dnsModeRules(rules []modeRule) []option.DNSRule {
 		}
 	}
 	return result
+}
+
+// LoadClashController 返回主配置中 Clash API 的本机可连接地址，未配置时返回空串。
+// 只读取监听地址，不读取也不返回密钥；通配监听地址归一为 loopback。
+func LoadClashController(path string) (string, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return ParseClashController(content)
+}
+
+func ParseClashController(content []byte) (string, error) {
+	var document *struct {
+		Experimental *struct {
+			ClashAPI *struct {
+				ExternalController string `json:"external_controller"`
+			} `json:"clash_api"`
+		} `json:"experimental"`
+	}
+	if err := json.Unmarshal(content, &document, json.RejectUnknownMembers(false)); err != nil {
+		return "", err
+	}
+	if document == nil || document.Experimental == nil || document.Experimental.ClashAPI == nil || document.Experimental.ClashAPI.ExternalController == "" {
+		return "", nil
+	}
+	host, port, err := net.SplitHostPort(document.Experimental.ClashAPI.ExternalController)
+	if err != nil {
+		return "", err
+	}
+	switch host {
+	case "", "0.0.0.0":
+		host = "127.0.0.1"
+	case "::", "[::]":
+		host = "::1"
+	}
+	return net.JoinHostPort(host, port), nil
 }

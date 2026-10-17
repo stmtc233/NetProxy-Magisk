@@ -41,7 +41,7 @@
 - eBPF 数据路径由 `ebpf.local.enabled` 与 `ebpf.shared.enabled` 独立启用，选择 eBPF 时至少开启一条；本机 `data_plane` 只允许 `cgroup/tc`，共享网络只允许 `packet_rewrite/socket_assign`。禁用路径可保存全部偏好，但运行时只输出 `enabled: false`。
 - 受管 TUN 固定 `auto_route=true` 与 `auto_redirect=true`，地址必须有效；不额外固定 MTU、stack、strict_route、marks 或 NFQUEUE 默认值。端口 bypass 使用主配置 route 的原生 pre-match 规则，不伪装成 TUN 字段或自动注入第四个 runtime。
 - Service API 与 Clash API 的固定监听和密钥位于 `config/singbox/config.json` 的 `services` 与 `experimental.clash_api`。不要重新引入运行时随机 bootstrap，现有 WebUI 依赖固定入口。
-- 服务状态只允许 `stopped/preparing/starting/ready/stopping/failed`。`ready_at` 只能在 sing-box API 与所选入站均就绪后写入。
+- 服务状态只允许 `stopped/preparing/starting/ready/stopping/failed`。`ready_at` 只能在 sing-box API、核心完整启动（Clash API 已监听；未配置时 Service API 启动时间已稳定 1.5 秒）与所选入站均就绪后写入。重载在当前实例未完成启动时不得发送 SIGHUP。
 - `service status` 的 `configured_backend` 是入站持久选择字符串；`active_backend` 仅在 ready、实际 PID 与启动记录匹配、API 毫秒级启动身份一致时非空，否则必须为 null。不从当前模板猜测旧核心后端，也不增加后端 PID/锁/状态文件。
 - 出站模式的唯一持久事实源是主配置 `experimental.clash_api.default_mode`；可选列表复用内核 `clashmode.CalculateModeList` 并包含默认模式，使用原生名称，不保留模块字段或固定四模式映射。`service status.outbound_mode` 表示实际模式，`configured_outbound_mode` 表示默认模式，`available_outbound_modes` 表示配置中的模式列表。停止时显示默认模式；运行中 API 不可用时显示 `unknown`。Wi-Fi 策略只修改运行时，不覆盖默认模式。
 - 模式保存与网络策略应用按生命周期锁、配置文件锁顺序串行执行；仅有效入站 DNS 参数变化才原位重载，参数不变时通过 API 切换并回读确认。API 失败不得重载兜底，已保存默认模式保留并返回 `mode.runtime_sync_failed`。Direct 必须先于 DNS 劫持路由；运行时将启用的 eBPF 路径 DNS 设为 off、TUN 设为 disabled，不改保存的偏好。启动/重载冻结同一策略生成入站并校准缓存模式，避免启动后再次重载；已开始的重载有界收尾，不被新网络事件取消。
@@ -217,6 +217,7 @@ Android Root、开机启动、模块命令、快捷设置磁贴、eBPF、热点�
 - Provider 与 selector 的默认值必须落到 `Auto/<group>`——回退到 `direct` 会让用户以为已代理而实际直连。
 - CI 与 Release 管理器 APK 使用同一固定签名；轮换密钥或改回临时签名会导致后续 APK 无法覆盖已安装版本。应用不按安装来源或签名证书限制使用，也不显示来源警告。
 - 订阅自定义请求头走 `--headers-file` 而非命令行参数——命令行对全系统可见（`/proc/<pid>/cmdline`），会泄露鉴权 token。
+- 重载以 Service API 启动时间变化即判定就绪，或在核心启动未完成时发送 SIGHUP——会让 sing-box 日志出现 `FATAL start service: context canceled` 并退出，服务停在 failed，连续更新多个订阅时尤其频繁。
 - 订阅请求的默认 User-Agent 是 `sing-box`——多数机场按 UA 白名单返回 `Subscription-Userinfo`，改成自定义 UA 会拿到 200 但没有流量信息。
 - 新增此类条款时写故障现象，不写设计理由：现象能阻止下一次回退，理由不能。
 
@@ -292,7 +293,7 @@ data/catalog/
 - `Select/<group>`：selector，手动选择。
 - `Proxy`：顶层 selector，连接各分组的 Auto/Select 出站。
 
-分组 ID 是内部稳定身份，运行时标签和界面优先使用分组名称；只有名称冲突时追加 ID 消歧。同组和跨组节点切换优先使用 Service API，新增或删除整个分组时才需要重新加载运行时配置。已有 Local Provider 的内容更新依赖 sing-box 文件监听，并通过 Service API 出站快照确认；不得把 `runtime_sync_pending` 直接当作整核 reload 条件。
+分组 ID 是内部稳定身份，运行时标签和界面优先使用分组名称；只有名称冲突时追加 ID 消歧。同组和跨组节点切换优先使用 Service API，新增或删除整个分组时才需要重新加载运行时配置。已有 Local Provider 的内容更新依赖 sing-box 文件监听，并通过 Service API 出站快照确认；不得把 `runtime_sync_pending` 直接当作整核 reload 条件。代理链只有变更分组自身配置了链路或被其他分组的链路引用时才整核 reload，Catalog 中其他位置存在链路不得触发。
 
 订阅名称留空时按 `Profile-Title`、`Content-Disposition` 文件名、URL 主机名、默认名「订阅」的顺序自动取名，在首次取得响应头后回填。
 
