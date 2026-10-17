@@ -13,6 +13,16 @@ internal class SubscriptionRepository(private val client: ModuleApiClient) {
     suspend fun details(id: String): CatalogNodeGroup = client.read("/subscriptions/$id")
     suspend fun readEditor(id: String): SubscriptionEditorState = client.read("/subscriptions/$id", mapOf("private" to "true"))
 
+    suspend fun proxyOptions(): List<SubscriptionProxyOption> =
+        client.read<CatalogNodesSnapshot>("/nodes/snapshot").groups.flatMap { group ->
+            group.nodes.map { node ->
+                SubscriptionProxyOption(
+                    reference = "${group.group.id}/${node.tag}",
+                    label = "${group.group.name} / ${node.tag}"
+                )
+            }
+        }
+
     suspend fun add(draft: SubscriptionDraft): JsonElement = client.post("/subscriptions", draft.document()
         .let { if (draft.name.isBlank()) JsonObject(it - "name") else it }).data
 
@@ -45,6 +55,7 @@ private fun SubscriptionDraft.document(): JsonObject = buildJsonObject {
     put("name", name); put("url", url); put("user_agent", userAgent); put("hwid", hwid)
     put("custom_headers", JsonObject(customHeaders.mapValues { JsonPrimitive(it.value) }))
     put("auto_update", autoUpdate); put("update_interval", updateIntervalSeconds)
-    put("update_via_proxy", updateViaProxy); put("include", include); put("exclude", exclude)
+    put("update_via_proxy", updateViaProxy)
+    put("front_proxy", frontProxy); put("landing_proxy", landingProxy); put("include", include); put("exclude", exclude)
     put("allow_insecure", allowInsecure); put("download_timeout", timeoutSeconds)
 }

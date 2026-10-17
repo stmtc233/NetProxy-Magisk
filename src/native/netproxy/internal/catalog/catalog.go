@@ -49,6 +49,8 @@ type GroupSummary struct {
 	AutoUpdate        bool           `json:"auto_update"`
 	UpdateInterval    int64          `json:"update_interval"`
 	UpdateViaProxy    string         `json:"update_via_proxy"`
+	FrontProxy        string         `json:"front_proxy"`
+	LandingProxy      string         `json:"landing_proxy"`
 	Usage             jsontext.Value `json:"usage"`
 	ProfileTitle      string         `json:"profile_title"`
 	ProfileWebPageURL string         `json:"profile_web_page_url"`
@@ -405,6 +407,9 @@ func BuildRuntime(ctx context.Context, options RuntimeOptions) (RuntimeResult, e
 		return RuntimeResult{}, errors.New("Catalog 元数据与 Provider 节点数量不一致")
 	}
 
+	if err := prepareRuntimeProviderCopies(ctx, filepath.Dir(options.ProvidersOutput), groups); err != nil {
+		return RuntimeResult{}, err
+	}
 	if err := writeRuntimeProviders(options.ProvidersOutput, groups); err != nil {
 		return RuntimeResult{}, err
 	}
@@ -435,6 +440,8 @@ type loadedGroup struct {
 	ProviderPath string
 	Nodes        []provider.NodeSummary
 	RuntimeTag   string
+	RuntimePath  string
+	ChainExclude *badoption.Regexp
 	hasNodes     bool
 }
 
@@ -462,7 +469,7 @@ func loadGroups(ctx context.Context, root string, includeEmpty bool) ([]*loadedG
 		}
 		groups = append(groups, &loadedGroup{
 			ID: entry.Name(), Metadata: metadata, ProviderPath: providerPath,
-			hasNodes: metadata.NodeCount > 0,
+			RuntimePath: providerPath, hasNodes: metadata.NodeCount > 0,
 		})
 	}
 	sort.Slice(groups, func(i, j int) bool { return groups[i].ID < groups[j].ID })
@@ -512,7 +519,7 @@ func writeRuntimeProviders(path string, groups []*loadedGroup) error {
 			Type: C.ProviderTypeLocal,
 			Tag:  group.RuntimeTag,
 			Options: &option.ProviderLocalOptions{
-				Path: group.ProviderPath,
+				Path: group.RuntimePath,
 				HealthCheck: option.ProviderHealthCheckOptions{
 					Enabled:  true,
 					URL:      "https://www.gstatic.com/generate_204",
@@ -541,7 +548,10 @@ func writeRuntimeOutbounds(path string, groups []*loadedGroup, defaultTag string
 				Type: C.TypeURLTest,
 				Tag:  autoTag,
 				Options: &option.URLTestOutboundOptions{
-					Providers:                 []string{group.RuntimeTag},
+					GroupCommonOption: option.GroupCommonOption{
+						Providers: []string{group.RuntimeTag},
+						Exclude:   group.ChainExclude,
+					},
 					URL:                       "https://www.gstatic.com/generate_204",
 					Interval:                  badoption.Duration(3 * time.Minute),
 					Tolerance:                 50,
@@ -552,7 +562,10 @@ func writeRuntimeOutbounds(path string, groups []*loadedGroup, defaultTag string
 				Type: C.TypeSelector,
 				Tag:  selectTag,
 				Options: &option.SelectorOutboundOptions{
-					Providers:                 []string{group.RuntimeTag},
+					GroupCommonOption: option.GroupCommonOption{
+						Providers: []string{group.RuntimeTag},
+						Exclude:   group.ChainExclude,
+					},
 					InterruptExistConnections: true,
 				},
 			},

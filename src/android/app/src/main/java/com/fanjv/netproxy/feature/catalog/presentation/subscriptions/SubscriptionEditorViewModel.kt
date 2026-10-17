@@ -40,14 +40,16 @@ internal class SubscriptionEditorViewModel(
         val request = ++generation
         if (routeId != id) _state.value = SubscriptionEditorUiState(id = id)
         routeId = id
-        if (id.isBlank()) return
         val snapshot = _state.value
         _state.update { it.copy(loading = true, saved = false) }
         loadJob = viewModelScope.launch {
             try {
-                val editor = repository.readEditor(id)
+                val options = repository.proxyOptions()
+                val editor = id.takeIf(String::isNotBlank)?.let { repository.readEditor(it) }
                 currentCoroutineContext().ensureActive()
-                if (request == generation) _state.update { it.rebase(snapshot, editor) }
+                if (request == generation) _state.update {
+                    (editor?.let { current -> it.rebase(snapshot, current) } ?: it).copy(proxyOptions = options)
+                }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {

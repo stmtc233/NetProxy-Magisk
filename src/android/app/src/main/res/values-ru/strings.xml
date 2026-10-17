@@ -158,6 +158,10 @@
     <string name="subscription_editor_network_direct">Напрямую</string>
     <string name="subscription_editor_filter_section">Фильтрация и соединение</string>
     <string name="subscription_editor_include">Включить только (регулярное выражение, необязательно)</string>
+    <string name="subscription_editor_front_proxy">Входящий прокси</string>
+    <string name="subscription_editor_landing_proxy">Выходной прокси</string>
+    <string name="subscription_editor_proxy_none">Не использовать</string>
+    <string name="subscription_editor_proxy_missing">Недоступно · %1$s</string>
     <string name="subscription_editor_exclude">Исключить (регулярное выражение, необязательно)</string>
     <string name="subscription_editor_allow_insecure">Не проверять сертификат TLS</string>
     <string name="subscription_editor_allow_insecure_summary">Включайте только при некорректном сертификате сервера подписки</string>

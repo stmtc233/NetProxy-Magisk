@@ -629,6 +629,9 @@ func runtimeProviderMatches(outbounds []serviceapi.GroupItem, runtimeTag string,
 	present := make(map[string]struct{}, len(expected))
 	for _, outbound := range outbounds {
 		if after, ok := strings.CutPrefix(outbound.Tag, prefix); ok {
+			if catalog.IsInternalChainNodeTag(after) {
+				continue
+			}
 			present[after] = struct{}{}
 		}
 	}

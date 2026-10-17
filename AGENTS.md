@@ -31,6 +31,7 @@
 - 用户选节点按生命周期锁、配置文件锁串行保存和应用；启动与重载只同步已保存选择，不再次调用用户保存入口。选择器 API 仅对临时通信或服务错误在总时限内重试，遵循请求取消；最终失败返回 `node.runtime_sync_failed` 并保留已保存选择，不重载兜底；Catalog 结构变化显式重载。
 - 本地节点变更与删除订阅先等待生命周期锁、恢复未完成配置事务，再提交 Catalog；提交后即使取消也要有界完成本地选择整理，Worker 同步必须在取锁前建立独立收尾上下文，并在锁内读取最新选择。订阅同步状态落盘同样有界且不受请求取消影响，运行时操作仍使用原请求上下文。提交后的本地或运行时失败分别返回 `node.persisted_effect_failed` / `node.runtime_sync_failed` 或对应的 `subscription.*`，并携带 `persisted=true`。Worker 通过 `SyncCatalog` 回调复用同一流程；pending 重试必须重新应用已保存选择，不能只验证 Provider 后清除 pending。
 - Provider 的运行时显示标签来自分组名称；名称冲突时才附加分组 ID。用户界面不得直接显示 UUID 代替可读名称。
+- 订阅级代理链以 `front_proxy`、`landing_proxy` 保存稳定的 `<group-id>/<tag>` 引用；持久 Provider 不写入链路改造，运行时使用隔离副本生成“前置 -> 订阅节点 -> 落地”链路，并从 Auto/Select 隐藏内部节点。
 - 自动选择必须落到 `Auto/<group>`，Provider/selector 的默认值绝不能静默回退到 `direct`。
 - eBPF 与 TUN 都是 sing-box 的入站实现，不是独立代理核心。服务、模式和节点切换文案继续使用“服务”或“sing-box”，不要泛化为“eBPF 服务”或“TUN 服务”。
 - `config/inbound/inbound.json` 是 backend、独立 Root 策略、共用 app 策略与两套原生入站参数的唯一事实源，不在 module.json 或客户端偏好中双写。外层固定为 `backend/root_policy/app/ebpf/tun`，两个原生对象的 type 匹配分区、tag 均固定为 `netproxy-in`；主配置不得重复定义受管 eBPF/TUN 或占用该标签。
@@ -280,6 +281,7 @@ data/catalog/
 - `default` 是固定本地分组，接收单链接和本地文件导入。
 - URL 订阅使用稳定的随机分组 ID；显示名称保存在 `meta.json`。
 - `provider.json` 是标准 sing-box Provider 文档，也是节点内容事实源。
+- `meta.json` 可保存订阅级 `front_proxy` 与 `landing_proxy` 节点引用；运行时副本写入 `runtime/providers/`，不得反向覆盖持久 Provider。
 - 本地与订阅节点都可直接编辑、导出和删除；订阅再次更新时会按远端内容重新生成该组 Provider。
 - `history.jsonl` 只记录脱敏后的更新结果，默认保留最近 20 条。
 - `staging/` 用于锁、下载、转换和校验的临时事务。进程崩溃后可清理，业务代码不得依赖其中内容恢复节点状态。

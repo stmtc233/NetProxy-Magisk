@@ -311,6 +311,8 @@ type resourceSubscriptionEdit struct {
 	AutoUpdate     *bool              `json:"auto_update"`
 	UpdateInterval *int64             `json:"update_interval"`
 	UpdateViaProxy *string            `json:"update_via_proxy"`
+	FrontProxy     *string            `json:"front_proxy"`
+	LandingProxy   *string            `json:"landing_proxy"`
 	Include        *string            `json:"include"`
 	Exclude        *string            `json:"exclude"`
 	AllowInsecure  *bool              `json:"allow_insecure"`
@@ -349,6 +351,12 @@ func (s *Server) addSubscription(ctx context.Context, r *http.Request) (contract
 	}
 	if input.UpdateViaProxy != nil {
 		options.UpdateViaProxy = *input.UpdateViaProxy
+	}
+	if input.FrontProxy != nil {
+		options.FrontProxy = *input.FrontProxy
+	}
+	if input.LandingProxy != nil {
+		options.LandingProxy = *input.LandingProxy
 	}
 	if input.Include != nil {
 		options.Include = *input.Include
@@ -438,6 +446,7 @@ func (s *Server) editSubscription(ctx context.Context, r *http.Request) (contrac
 	data, err := module.EditSubscription(ctx, s.options, metadata.ID, subscription.EditOptions{
 		Name: input.Name, URL: input.URL, UserAgent: input.UserAgent, HWID: input.HWID, CustomHeaders: input.CustomHeaders,
 		AutoUpdate: input.AutoUpdate, UpdateInterval: input.UpdateInterval, UpdateViaProxy: input.UpdateViaProxy,
+		FrontProxy: input.FrontProxy, LandingProxy: input.LandingProxy,
 		Include: input.Include, Exclude: input.Exclude, AllowInsecure: input.AllowInsecure, Timeout: input.Timeout,
 	})
 	return contract.Success("subscription.edited", "订阅设置已更新", data), err

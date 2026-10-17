@@ -474,6 +474,10 @@ func Update(ctx context.Context, options UpdateOptions) (Result, error) {
 		metadata.LastError = current.LastError
 	}
 	metadata.RuntimeSyncPending = metadata.RuntimeSyncPending || current.RuntimeSyncPending || options.RuntimeSyncPending
+	if err := catalog.ValidateProxyReferenceTargetsLocked(ctx, options.Root, options.GroupID, filtered, ""); err != nil {
+		commitReleaseRoot()
+		return updateFailure(ctx, options, metadata, groupDir, started, response, "subscription.proxy_ref_in_use", "订阅更新会破坏正在使用的代理链节点", err)
+	}
 	if err := catalog.SaveMetadataAtomicLocked(metadataPath, metadata); err != nil {
 		commitReleaseRoot()
 		return updateFailure(ctx, options, metadata, groupDir, started, response, "metadata.write_failed", "订阅元数据写入失败", err)
@@ -699,6 +703,8 @@ func sameUpdateSnapshot(left, right catalog.Metadata) bool {
 		left.UpdateInterval == right.UpdateInterval &&
 		left.IntervalSource == right.IntervalSource &&
 		left.UpdateViaProxy == right.UpdateViaProxy &&
+		left.FrontProxy == right.FrontProxy &&
+		left.LandingProxy == right.LandingProxy &&
 		left.Include == right.Include &&
 		left.Exclude == right.Exclude &&
 		left.AllowInsecure == right.AllowInsecure &&

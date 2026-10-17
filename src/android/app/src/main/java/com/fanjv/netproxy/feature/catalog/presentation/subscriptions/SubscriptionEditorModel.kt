@@ -4,6 +4,7 @@ import com.fanjv.netproxy.core.api.ModuleApiException
 import com.fanjv.netproxy.core.ui.UiText
 import com.fanjv.netproxy.feature.catalog.model.SubscriptionDraft
 import com.fanjv.netproxy.feature.catalog.model.SubscriptionEditorState
+import com.fanjv.netproxy.feature.catalog.model.SubscriptionProxyOption
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -15,6 +16,7 @@ internal data class SubscriptionEditorUiState(
     val id: String = "",
     val original: SubscriptionEditorState? = null,
     val draft: SubscriptionDraft = SubscriptionDraft(name = "", url = ""),
+    val proxyOptions: List<SubscriptionProxyOption> = emptyList(),
     val headersText: String = "",
     val loading: Boolean = false,
     val saving: Boolean = false,
@@ -31,7 +33,8 @@ internal fun SubscriptionEditorState.toDraft() = SubscriptionDraft(
     name = name, url = url, userAgent = userAgent, hwid = hwid,
     customHeaders = customHeaders.mapValues { it.value.jsonPrimitive.content },
     autoUpdate = autoUpdate, updateIntervalSeconds = updateInterval,
-    updateViaProxy = updateViaProxy, include = include, exclude = exclude,
+    updateViaProxy = updateViaProxy, frontProxy = frontProxy, landingProxy = landingProxy,
+    include = include, exclude = exclude,
     allowInsecure = allowInsecure, timeoutSeconds = timeout
 )
 
@@ -70,6 +73,8 @@ internal fun SubscriptionEditorUiState.rebase(
             autoUpdate = keep(draft.autoUpdate, before.autoUpdate, disk.autoUpdate),
             updateIntervalSeconds = keep(draft.updateIntervalSeconds, before.updateIntervalSeconds, disk.updateIntervalSeconds),
             updateViaProxy = keep(draft.updateViaProxy, before.updateViaProxy, disk.updateViaProxy),
+            frontProxy = keep(draft.frontProxy, before.frontProxy, disk.frontProxy),
+            landingProxy = keep(draft.landingProxy, before.landingProxy, disk.landingProxy),
             include = keep(draft.include, before.include, disk.include),
             exclude = keep(draft.exclude, before.exclude, disk.exclude),
             allowInsecure = keep(draft.allowInsecure, before.allowInsecure, disk.allowInsecure),

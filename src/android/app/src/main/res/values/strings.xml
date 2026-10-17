@@ -158,6 +158,10 @@
     <string name="subscription_editor_network_direct">Direct</string>
     <string name="subscription_editor_filter_section">Filtering and connection</string>
     <string name="subscription_editor_include">Include only (regex, optional)</string>
+    <string name="subscription_editor_front_proxy">Front proxy</string>
+    <string name="subscription_editor_landing_proxy">Landing proxy</string>
+    <string name="subscription_editor_proxy_none">None</string>
+    <string name="subscription_editor_proxy_missing">Unavailable · %1$s</string>
     <string name="subscription_editor_exclude">Exclude (regex, optional)</string>
     <string name="subscription_editor_allow_insecure">Skip TLS certificate verification</string>
     <string name="subscription_editor_allow_insecure_summary">Enable only if the subscription server certificate is invalid</string>
