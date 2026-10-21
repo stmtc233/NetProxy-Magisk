@@ -307,6 +307,47 @@ func TestNetworkWatcherSkipsEvaluationWhenStateReadFails(t *testing.T) {
 	}
 }
 
+func TestNetworkWatcherRetriesFailedEvaluationWithoutEvents(t *testing.T) {
+	var mu sync.Mutex
+	evaluations := 0
+	succeeded := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		runNetworkWatcher(ctx, Options{
+			NetworkEventSource: channelNetworkEventSource(nil),
+			NetworkStateReader: func(context.Context) (NetworkState, error) {
+				return NetworkState{NetworkType: "not_wifi"}, nil
+			},
+			NetworkEvaluate: func(context.Context, string, string) error {
+				mu.Lock()
+				defer mu.Unlock()
+				evaluations++
+				if evaluations < 3 {
+					return errors.New("reload failed")
+				}
+				close(succeeded)
+				return nil
+			},
+			NetworkRetryInterval: 5 * time.Millisecond,
+		}, log.New(io.Discard, "", 0))
+		close(done)
+	}()
+	select {
+	case <-succeeded:
+	case <-time.After(time.Second):
+		t.Fatal("策略应用失败后未在没有网络事件时重试")
+	}
+	time.Sleep(40 * time.Millisecond)
+	cancel()
+	<-done
+	mu.Lock()
+	defer mu.Unlock()
+	if evaluations != 3 {
+		t.Fatalf("成功后不应继续重试，count=%d", evaluations)
+	}
+}
+
 func channelNetworkEventSource(events <-chan struct{}) NetworkEventSource {
 	return func(ctx context.Context, notify func()) error {
 		for {

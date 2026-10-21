@@ -337,7 +337,7 @@ data/catalog/
 
 HTTP 验证器只跟随已接受的 Provider 更新：失败保留原 ETag/Last-Modified，成功 200 替换或清空，304 只更新实际返回的值。跨域后的整个重定向链不得重新携带初始敏感 Header，HTTPS 降级与超过跳数限制均拒绝，不触发直连重试。
 
-Worker 根据各订阅的 `next_update_at` 调度，不依赖 sing-box 和 `crond`；同时通过 netlink 监听 Android 路由、地址和接口变化，再读取 Wi-Fi 与实际出口状态进行策略评估，不得改回文件或定时轮询。运行时进度放在 `/dev/netproxy/subscriptions/`，完成后不作为长期 UI 状态显示。
+Worker 根据各订阅的 `next_update_at` 调度，不依赖 sing-box 和 `crond`；同时通过 netlink 监听 Android 路由、地址和接口变化，再读取 Wi-Fi 与实际出口状态进行策略评估，不得改回文件或定时轮询；策略应用失败后按 5 秒起、最长 5 分钟退避重试，成功即复位，不能只等下一次网络事件。运行时进度放在 `/dev/netproxy/subscriptions/`，完成后不作为长期 UI 状态显示。
 
 失败退避按分组独立计算，正常调度和重试取最早截止时间；每轮读取最新启用状态，关闭自动更新或删除分组后丢弃重试。退避仅保存在 Worker 内存，配置唤醒重新计算调度但不提前重试失败分组。
 

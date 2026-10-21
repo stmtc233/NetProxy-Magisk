@@ -81,6 +81,7 @@ type Options struct {
 	NetworkEventSource      NetworkEventSource
 	NetworkStateReader      NetworkStateReader
 	NetworkDebounceInterval time.Duration
+	NetworkRetryInterval    time.Duration
 	Now                     func() time.Time
 	NewTimer                TimerFactory
 	CoreRunning             func() bool

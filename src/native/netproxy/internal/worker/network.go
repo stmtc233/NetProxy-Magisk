@@ -16,6 +16,8 @@ const (
 	networkEventRetryInterval = 30 * time.Second
 	networkCommandTimeout     = 3 * time.Second
 	networkEvaluateTimeout    = 90 * time.Second
+	networkRetryInitial       = 5 * time.Second
+	networkRetryMaximum       = 5 * time.Minute
 	networkErrorRepeatEvery   = 100
 )
 
@@ -93,6 +95,11 @@ func runNetworkWatcher(ctx context.Context, options Options, logger *log.Logger)
 	if debounceInterval <= 0 {
 		debounceInterval = networkDebounceInterval
 	}
+	retryInitial := options.NetworkRetryInterval
+	if retryInitial <= 0 {
+		retryInitial = networkRetryInitial
+	}
+	retryDelay := retryInitial
 	events := make(chan struct{}, 1)
 	notify := func() {
 		select {
@@ -180,12 +187,20 @@ func runNetworkWatcher(ctx context.Context, options Options, logger *log.Logger)
 			}
 			if result.evaluateErr != nil {
 				logWorker(logger, "ERROR", "network.policy", "failed", "网络策略评估失败 (network_type=%s): %v", result.state.NetworkType, result.evaluateErr)
-			} else if result.readErr == nil && !result.skipped {
-				lastEvaluatedState = result.state
-				haveEvaluatedState = true
+			} else if result.readErr == nil {
+				retryDelay = retryInitial
+				if !result.skipped {
+					lastEvaluatedState = result.state
+					haveEvaluatedState = true
+				}
 			}
 			if pending {
 				startEvaluation()
+			} else if result.evaluateErr != nil && debounce == nil {
+				// 应用失败后运行时可能仍是上一网络的策略；稳定网络下不会再有事件，
+				// 必须自行退避重试，不能等到下次网络变化。
+				scheduleEvaluation(retryDelay)
+				retryDelay = min(retryDelay*2, networkRetryMaximum)
 			}
 		}
 	}
