@@ -515,18 +515,13 @@ func findGroup(groups []*loadedGroup, id string) int {
 func writeRuntimeProviders(path string, groups []*loadedGroup) error {
 	items := make([]option.Provider, 0, len(groups))
 	for _, group := range groups {
+		// 测速只由 Auto 分组负责，Provider 不启用 health_check。Provider 关闭会等待全部在途测速，
+		// 且其测速会覆盖代理链内部节点；多路复用节点拨号期间持有会话锁，网络切换时
+		// 内核关闭或 finish-start 超过 10 秒，sing-box 以 "did not close" 退出。
 		items = append(items, option.Provider{
-			Type: C.ProviderTypeLocal,
-			Tag:  group.RuntimeTag,
-			Options: &option.ProviderLocalOptions{
-				Path: group.RuntimePath,
-				HealthCheck: option.ProviderHealthCheckOptions{
-					Enabled:  true,
-					URL:      "https://www.gstatic.com/generate_204",
-					Interval: badoption.Duration(10 * time.Minute),
-					Timeout:  badoption.Duration(5 * time.Second),
-				},
-			},
+			Type:    C.ProviderTypeLocal,
+			Tag:     group.RuntimeTag,
+			Options: &option.ProviderLocalOptions{Path: group.RuntimePath},
 		})
 	}
 	return writeRuntimeJSONAtomic(path, struct {

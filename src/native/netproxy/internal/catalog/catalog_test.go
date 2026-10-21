@@ -63,6 +63,9 @@ func TestScanAndBuildRuntime(t *testing.T) {
 			t.Fatalf("providers missing %s: %s", expected, providers)
 		}
 	}
+	if strings.Contains(providers, "health_check") {
+		t.Fatalf("Provider 不应与 Auto 分组重复测速: %s", providers)
+	}
 	if !strings.Contains(outbounds, `"default": "Select/同名分组 [remote]"`) {
 		t.Fatalf("unexpected outbounds: %s", outbounds)
 	}

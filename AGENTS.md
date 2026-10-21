@@ -218,6 +218,7 @@ Android Root、开机启动、模块命令、快捷设置磁贴、eBPF、热点�
 - CI 与 Release 管理器 APK 使用同一固定签名；轮换密钥或改回临时签名会导致后续 APK 无法覆盖已安装版本。应用不按安装来源或签名证书限制使用，也不显示来源警告。
 - 订阅自定义请求头走 `--headers-file` 而非命令行参数——命令行对全系统可见（`/proc/<pid>/cmdline`），会泄露鉴权 token。
 - 重载以 Service API 启动时间变化即判定就绪，或在核心启动未完成时发送 SIGHUP——会让 sing-box 日志出现 `FATAL start service: context canceled` 并退出，服务停在 failed，连续更新多个订阅时尤其频繁。
+- 运行时 Local Provider 不启用 `health_check`，测速只由 `Auto/<group>` 负责——启用后网络切换触发的重载会卡在 `close provider/local[...]`，sing-box 以 `did not close!` 退出，新实例卡在 `finish-start reference manager` 无法就绪，最终被强杀并要求重启设备。
 - 订阅请求的默认 User-Agent 是 `sing-box`——多数机场按 UA 白名单返回 `Subscription-Userinfo`，改成自定义 UA 会拿到 200 但没有流量信息。
 - 新增此类条款时写故障现象，不写设计理由：现象能阻止下一次回退，理由不能。
 
