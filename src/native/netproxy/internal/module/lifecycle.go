@@ -355,11 +355,14 @@ func reloadPreparedService(ctx context.Context, options Options, prepared Prepar
 	if pid <= 0 {
 		return errors.New("sing-box 未运行，无法重新加载")
 	}
-	oldStartedAtMillis, err := serviceStartedAtMillis(ctx, options)
+	oldStartedAtMillis, err := serviceStartedAt(ctx, options)
 	if err != nil {
 		return fmt.Errorf("Service API 未就绪，无法确认原位重新加载: %w", err)
 	}
 	if err := waitCoreSettled(ctx, options, pid, oldStartedAtMillis); err != nil {
+		if errors.Is(err, errServiceProcessExited) {
+			return restartExitedService(ctx, options, prepared, synchronizeSelection, err)
+		}
 		return fmt.Errorf("无法重新加载: %w", err)
 	}
 	oldStartedAt := oldStartedAtMillis / 1000
@@ -370,6 +373,9 @@ func reloadPreparedService(ctx context.Context, options Options, prepared Prepar
 		return restoreReloadState(ctx, options, pid, oldStartedAt, state.ReadyAt, err)
 	}
 	startedAt, err := waitForServiceReady(ctx, options, pid, serviceReadyTimeout, oldStartedAtMillis)
+	if errors.Is(err, errServiceProcessExited) {
+		return restartExitedService(ctx, options, prepared, synchronizeSelection, err)
+	}
 	if err != nil {
 		return restoreReloadState(ctx, options, pid, oldStartedAt, state.ReadyAt, err)
 	}
@@ -388,6 +394,22 @@ func reloadPreparedService(ctx context.Context, options Options, prepared Prepar
 		return err
 	}
 	logService(options, "INFO", "service.reload", "success", "sing-box 配置重新加载完成")
+	return nil
+}
+
+// restartExitedService 在实例于重载期间自行退出后，用已通过检查的同一份配置冷启动。
+// 内核关闭旧实例超过 10 秒会以 "did not close!" 退出；若只记录 failed，订阅更新与节点变更
+// 这类没有配置回滚的调用方会让核心一直停止，直到用户手动启动。
+func restartExitedService(ctx context.Context, options Options, prepared PrepareResult, synchronizeSelection bool, cause error) error {
+	logService(options, "WARN", "service.reload", "restarting", "sing-box 在重新加载期间退出，使用新配置重新启动: %v", cause)
+	if synchronizeSelection {
+		if err := options.updateSelection(ctx, prepared.Selection); err != nil {
+			return restoreReloadState(ctx, options, 0, 0, 0, errors.Join(cause, err))
+		}
+	}
+	if err := startExitedService(ctx, options, prepared); err != nil {
+		return fmt.Errorf("sing-box 原位重新加载失败: %w", errors.Join(cause, err))
+	}
 	return nil
 }
 
@@ -556,11 +578,15 @@ func serviceStartedAtMillis(ctx context.Context, options Options) (int64, error)
 	return startedAt.UnixMilli, nil
 }
 
-// coreStartFinished 与 signalReload 为测试注入点。
+// 以下为测试注入点。
 var (
-	coreStartFinished = probeCoreStartFinished
-	signalReload      = signalServiceReload
+	coreStartFinished  = probeCoreStartFinished
+	signalReload       = signalServiceReload
+	serviceStartedAt   = serviceStartedAtMillis
+	startExitedService = startPreparedService
 )
+
+var errServiceProcessExited = errors.New("sing-box 进程已退出")
 
 const (
 	// 未配置 Clash API 时，Service API 启动时间稳定这么久才视为核心启动完成。
@@ -614,9 +640,9 @@ func waitForServiceReady(ctx context.Context, options Options, pid int, timeout 
 	var startedAt int64
 	for {
 		if !serviceProcessAlive(pid) {
-			return 0, errors.New("sing-box 进程已退出")
+			return 0, errServiceProcessExited
 		}
-		if current, err := serviceStartedAtMillis(ctx, options); err == nil {
+		if current, err := serviceStartedAt(ctx, options); err == nil {
 			// 启动期间内核自行重载会再次改变启动时间，以最新值为准重新等待。
 			if current != startedAt && (startedAt != 0 || previousStartedAtMillis == 0 || current != previousStartedAtMillis) {
 				startedAt = current
@@ -644,7 +670,7 @@ func waitCoreSettled(ctx context.Context, options Options, pid int, startedAtMil
 	defer ticker.Stop()
 	for !coreStartFinished(ctx, controller, startedAtMillis) {
 		if !serviceProcessAlive(pid) {
-			return errors.New("sing-box 进程已退出")
+			return errServiceProcessExited
 		}
 		select {
 		case <-ctx.Done():

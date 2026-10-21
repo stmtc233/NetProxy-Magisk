@@ -41,7 +41,7 @@
 - eBPF 数据路径由 `ebpf.local.enabled` 与 `ebpf.shared.enabled` 独立启用，选择 eBPF 时至少开启一条；本机 `data_plane` 只允许 `cgroup/tc`，共享网络只允许 `packet_rewrite/socket_assign`。禁用路径可保存全部偏好，但运行时只输出 `enabled: false`。
 - 受管 TUN 固定 `auto_route=true` 与 `auto_redirect=true`，地址必须有效；不额外固定 MTU、stack、strict_route、marks 或 NFQUEUE 默认值。端口 bypass 使用主配置 route 的原生 pre-match 规则，不伪装成 TUN 字段或自动注入第四个 runtime。
 - Service API 与 Clash API 的固定监听和密钥位于 `config/singbox/config.json` 的 `services` 与 `experimental.clash_api`。不要重新引入运行时随机 bootstrap，现有 WebUI 依赖固定入口。
-- 服务状态只允许 `stopped/preparing/starting/ready/stopping/failed`。`ready_at` 只能在 sing-box API、核心完整启动（Clash API 已监听；未配置时 Service API 启动时间已稳定 1.5 秒）与所选入站均就绪后写入。重载在当前实例未完成启动时不得发送 SIGHUP。
+- 服务状态只允许 `stopped/preparing/starting/ready/stopping/failed`。`ready_at` 只能在 sing-box API、核心完整启动（Clash API 已监听；未配置时 Service API 启动时间已稳定 1.5 秒）与所选入站均就绪后写入。重载在当前实例未完成启动时不得发送 SIGHUP。实例在重载期间自行退出（如内核 `did not close!`）时，用本次已检查的配置冷启动，不得只记 failed 让核心停止；强杀仍按需重启设备处理。
 - `service status` 的 `configured_backend` 是入站持久选择字符串；`active_backend` 仅在 ready、实际 PID 与启动记录匹配、API 毫秒级启动身份一致时非空，否则必须为 null。不从当前模板猜测旧核心后端，也不增加后端 PID/锁/状态文件。
 - 出站模式的唯一持久事实源是主配置 `experimental.clash_api.default_mode`；可选列表复用内核 `clashmode.CalculateModeList` 并包含默认模式，使用原生名称，不保留模块字段或固定四模式映射。`service status.outbound_mode` 表示实际模式，`configured_outbound_mode` 表示默认模式，`available_outbound_modes` 表示配置中的模式列表。停止时显示默认模式；运行中 API 不可用时显示 `unknown`。Wi-Fi 策略只修改运行时，不覆盖默认模式。
 - 模式保存与网络策略应用按生命周期锁、配置文件锁顺序串行执行；仅有效入站 DNS 参数变化才原位重载，参数不变时通过 API 切换并回读确认。API 失败不得重载兜底，已保存默认模式保留并返回 `mode.runtime_sync_failed`。Direct 必须先于 DNS 劫持路由；运行时将启用的 eBPF 路径 DNS 设为 off、TUN 设为 disabled，不改保存的偏好。启动/重载冻结同一策略生成入站并校准缓存模式，避免启动后再次重载；已开始的重载有界收尾，不被新网络事件取消。
